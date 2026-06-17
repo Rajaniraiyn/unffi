@@ -119,12 +119,16 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     },
   )
 
+  function close() {
+    for (const cb of callbacks.values()) cb.close()
+    callbacks.clear()
+    lib.close()
+  }
+
   return {
     symbols: symbols as InferLibrary<S>['symbols'],
-    close() {
-      for (const cb of callbacks.values()) cb.close()
-      callbacks.clear()
-      lib.close()
-    },
+    close,
+    [Symbol.dispose]: close,
+    [Symbol.asyncDispose]() { return Promise.resolve(close()) },
   }
 }

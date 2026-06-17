@@ -8,12 +8,12 @@
  */
 import { dlopen, t } from 'unffi'
 
-const lib = await dlopen('./libadd', {
+// `await using` — lib is closed automatically at end of block via Symbol.asyncDispose
+await using lib = await dlopen('./libadd', {
   add:      { args: [t.i32, t.i32], returns: t.i32 },
   addAsync: { args: [t.i32, t.i32], returns: t.i32, async: true },
 })
 
 console.log(lib.symbols.add(2, 3))              // 5
 console.log(await lib.symbols.addAsync(10, 20)) // 30
-
-lib.close()
+// lib is disposed here — no explicit lib.close() needed

@@ -96,14 +96,18 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
       : (...callArgs: unknown[]) => fn(...wrapCallbacks(callArgs, callbackDefs))
   }
 
+  function close() {
+    const maybeLib = lib as unknown as Record<string, unknown>
+    if (typeof maybeLib['unload'] === 'function') {
+      ;(maybeLib as unknown as { unload(): void }).unload()
+    }
+  }
+
   return {
     symbols: symbols as InferLibrary<S>['symbols'],
-    close() {
-      const maybeLib = lib as unknown as Record<string, unknown>
-      if (typeof maybeLib['unload'] === 'function') {
-        ;(maybeLib as unknown as { unload(): void }).unload()
-      }
-    },
+    close,
+    [Symbol.dispose]: close,
+    [Symbol.asyncDispose]() { return Promise.resolve(close()) },
   }
 }
 

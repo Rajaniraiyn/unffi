@@ -32,5 +32,8 @@ export type InferSymbolFn<S extends SymbolDef> =
 
 export type InferLibrary<S extends SymbolsSchema> = {
   readonly symbols: { readonly [K in keyof S]: InferSymbolFn<S[K]> }
+  /** Explicit close — also called automatically via `using` / `await using`. */
   close(): void
+  [Symbol.dispose](): void
+  [Symbol.asyncDispose](): Promise<void>
 }
