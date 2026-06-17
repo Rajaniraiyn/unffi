@@ -1,18 +1,10 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
+import { runtimeHint } from './hints.js'
 
 export type { InferLibrary }
 
-// ─── DenoT — extends CoreT with Deno-specific FFI types ──────────────────────
-//
-// Notes on the types used below:
-//   - usize / isize map to Deno's NativeBigIntType → bigint at runtime
-//   - struct(...)   builds a Deno.NativeStructType ({ struct: NativeType[] })
-//                   and produces a Uint8Array on read (per Deno's FromNativeType)
-//   - ptrOf / readCString / readArrayBuffer expose Deno's zero-copy helpers
-//     so users can opt-in to the fast paths without an as-cast.
-//
 export interface DenoT extends CoreT {
   readonly deno: {
     /** Pointer-sized unsigned integer (64-bit on 64-bit systems) → `bigint` */
@@ -51,11 +43,6 @@ export interface DenoT extends CoreT {
   }
 }
 
-// ─── Internal: kind → Deno NativeType ────────────────────────────────────────
-// We use Deno.NativeResultType directly (no string duplication).
-// `cstring` is represented as a `pointer` at the FFI boundary; the adapter
-// transparently encodes/decodes UTF-8 NUL-terminated bytes so users always
-// see plain JS strings.
 const coreDenoTypes: Record<CTypeKind, Deno.NativeResultType> = {
   void:     'void',
   bool:     'bool',
@@ -68,8 +55,6 @@ const coreDenoTypes: Record<CTypeKind, Deno.NativeResultType> = {
   function: 'function',
 }
 
-// Deno-specific extra type kinds, prefixed with `deno:` so they can never
-// collide with another runtime's namespace.
 const denoExtraTypes: Record<string, Deno.NativeResultType> = {
   'deno:usize': 'usize',
   'deno:isize': 'isize',
@@ -77,8 +62,6 @@ const denoExtraTypes: Record<string, Deno.NativeResultType> = {
 
 const allDenoTypes: Record<string, Deno.NativeResultType> = { ...coreDenoTypes, ...denoExtraTypes }
 
-// Struct types carry their NativeStructType definition on the token itself
-// (under a private symbol) so we don't need a global registry.
 const StructDef = Symbol('unffi.deno.struct')
 type StructCType = CType<Uint8Array> & { readonly [StructDef]: Deno.NativeStructType }
 
@@ -91,13 +74,8 @@ function getDenoType(type: CType<any>): Deno.NativeType {
   const kind = type.kind
   const mapped = allDenoTypes[kind]
   if (mapped !== undefined && mapped !== 'void') return mapped as Deno.NativeType
-  if (mapped === 'void') return mapped as unknown as Deno.NativeType // valid for result only — let Deno error if misused
-  const hint =
-    kind.startsWith('bun:')   ? 'This is a Bun-specific type — run with Bun. See https://bun.sh/docs/api/ffi' :
-    kind.startsWith('node:')  ? 'This is a Node.js-specific type — run with Node.js.' :
-    kind.startsWith('koffi:') ? 'This is a koffi-specific type — run with Node.js and install koffi. See https://koffi.dev' :
-    'Unknown type kind.'
-  throw new Error(`[unffi/deno] Unsupported FFI type "${kind}". ${hint}`)
+  if (mapped === 'void') return mapped as unknown as Deno.NativeType
+  throw new Error(`[unffi/deno] Unsupported FFI type "${kind}". ${runtimeHint(kind, 'deno')}`)
 }
 
 function getDenoResultType(type: CType<any>): Deno.NativeResultType {
@@ -108,7 +86,6 @@ function getDenoResultType(type: CType<any>): Deno.NativeResultType {
   throw new Error(`[unffi/deno] Unsupported FFI result type "${kind}".`)
 }
 
-// ─── Deno-specific t extensions ───────────────────────────────────────────────
 const denoExtensions: DenoT['deno'] = {
   usize: { kind: 'deno:usize' } as unknown as CType<bigint>,
   isize: { kind: 'deno:isize' } as unknown as CType<bigint>,
@@ -134,14 +111,9 @@ const denoExtensions: DenoT['deno'] = {
 
 export const t: DenoT = Object.assign({}, coreT, { deno: denoExtensions })
 
-// ─── Helpers for cstring normalisation ───────────────────────────────────────
-// TextEncoder is a Web/Deno global; declare a minimal type so we don't depend
-// on the `DOM` lib being present in the deno tsconfig.
 declare const TextEncoder: { new (): { encode(input: string): Uint8Array } }
 const enc = new TextEncoder()
 
-/** Encode a JS string as a NUL-terminated UTF-8 Uint8Array and return a Deno pointer to it.
- *  The returned bytes are kept alive by the caller closure until the FFI call returns. */
 function encodeCStringPtr(s: string): { ptr: Deno.PointerValue; bytes: Uint8Array } {
   const bytes = enc.encode(s + '\0')
   return { ptr: Deno.UnsafePointer.of(bytes), bytes }
@@ -152,18 +124,6 @@ function decodeCStringResult(ptr: Deno.PointerValue): string | null {
   return Deno.UnsafePointerView.getCString(ptr)
 }
 
-// ─── dlopen ───────────────────────────────────────────────────────────────────
-
-/**
- * Open a shared library. Symbols are typed from the schema.
- * Under Deno this uses `Deno.dlopen` — native perf, requires `--allow-ffi`.
- *
- * Normalisation performed by this adapter so user code is identical across runtimes:
- *   cstring INPUT  : JS string → NUL-terminated Uint8Array → Deno pointer
- *   cstring OUTPUT : Deno PointerObject → JS string via UnsafePointerView.getCString
- *   cstring in CALLBACK params (C→JS) : PointerObject → JS string
- *   buffer INPUT   : TypedArray passed directly (Deno's `buffer` is already zero-copy)
- */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
   const denoSymbols: Record<string, Deno.ForeignFunction> = {}
 
@@ -189,19 +149,17 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     throw e
   }
 
-  // Track every UnsafeCallback we create so `close()` can free them.
+  // NO FinalizationRegistry on UnsafeCallbacks. C may retain the
+  // pointer after the JS function becomes unreachable (stored handler,
+  // signal/atexit hook), so GC-driven free races with a live C-side caller.
+  // Lifetime is bound to the library, freed in close().
   const callbacks = new Set<Deno.UnsafeCallback>()
-
-  // Build per-symbol wrappers up-front (avoids work per call).
   const wrappedSymbols: Record<string, (...args: unknown[]) => unknown> = {}
 
   for (const [name, def] of Object.entries(schema)) {
     const rawFn = (lib.symbols as Record<string, (...a: unknown[]) => unknown>)[name]
 
-    if (!rawFn) {
-      // Should be impossible — dlopen would have thrown — but be safe.
-      continue
-    }
+    if (!rawFn) continue
 
     const cstringInIdx = def.args
       .map((a, i) => (a.kind === 'cstring' ? i : -1))
@@ -218,7 +176,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
 
     wrappedSymbols[name] = (...args: unknown[]) => {
       const wrapped: unknown[] = [...args]
-      // Keep encoded byte buffers alive across the call.
       const keepAlive: Uint8Array[] = []
 
       for (const i of cstringInIdx) {
@@ -235,14 +192,11 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
         const cb     = def.args[i] as CCallback<readonly CType<unknown>[], CType<unknown>>
         const userFn = wrapped[i] as (...a: unknown[]) => unknown
 
-        // Wrap the user's JS callback so cstring args from C are decoded to strings.
         const cbCstrIdx = cb.argTypes
           .map((a, j) => (a.kind === 'cstring' ? j : -1))
           .filter((j) => j !== -1)
         const cbReturnsCstring = cb.returnType.kind === 'cstring'
 
-        // Keep encoded return strings alive at least until the next call.
-        // (Deno copies the bytes during the FFI hop, but we hold a ref to be safe.)
         const cbKeepAlive: Uint8Array[] = []
 
         const inner = (cbCstrIdx.length === 0 && !cbReturnsCstring)
@@ -282,12 +236,15 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
       }
 
       // Touch keepAlive after the call so the optimiser cannot drop it.
-      if (keepAlive.length) void keepAlive.length
+      void keepAlive.length
       return result
     }
   }
 
+  let closed = false
   function close() {
+    if (closed) return  // idempotent: safe to call after `using` already disposed
+    closed = true
     for (const cb of callbacks) cb.close()
     callbacks.clear()
     lib.close()

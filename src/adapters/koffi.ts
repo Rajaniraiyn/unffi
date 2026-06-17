@@ -2,40 +2,27 @@ import koffi, { type IKoffiLib, type IKoffiCType } from 'koffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
+import { runtimeHint } from './hints.js'
 
 export type { InferLibrary }
 
-// ─── Type derivation from koffi's own declarations ────────────────────────────
-// TypeSpec is not exported — derive it from IKoffiLib.symbol's signature so
-// we stay in lock-step with whatever koffi declares (`string | IKoffiCType`).
 type KoffiTypeSpec = Parameters<IKoffiLib['symbol']>[1]
 
-// Struct field map — derived from koffi.struct so we never duplicate the
-// underlying TypeSpecWithAlignment union.
 type KoffiStructDef = Parameters<typeof koffi.struct>[0] extends infer P
   ? P extends Record<string, unknown> ? P : Record<string, KoffiTypeSpec>
   : Record<string, KoffiTypeSpec>
 
-// Array hint — koffi.d.ts has overlapping overloads so `Parameters<typeof koffi.array>[2]`
-// resolves to the wrong member. Hardcoded to koffi's `ArrayHint` literal union.
+// koffi.d.ts overlapping overloads make Parameters<typeof koffi.array>[2] resolve wrong
 type KoffiArrayHint = 'Array' | 'Typed' | 'String'
 
-// ─── CType extension: carry an IKoffiCType payload alongside `kind` ───────────
-// User-facing API stays identical (everything is a `CType<T>`), but composite
-// koffi types (struct, array, pointer, out, …) need to round-trip the native
-// `IKoffiCType` object. We attach it via a WeakMap keyed by the CType.
 const nativeKoffiType = new WeakMap<CType<unknown>, IKoffiCType>()
 
 function brand<T>(native: IKoffiCType): CType<T> {
-  // `kind` is informational for koffi-native types — the WeakMap lookup is
-  // what drives `getKoffiType`. The tag still helps error messages and any
-  // external introspection.
   const ct = { kind: 'koffi:native' as CTypeKind } as CType<T>
   nativeKoffiType.set(ct as CType<unknown>, native)
   return ct
 }
 
-// ─── KoffiT — extends CoreT with koffi-specific FFI types ────────────────────
 export interface KoffiT extends CoreT {
   readonly koffi: {
     /** UTF-16 string — for Windows APIs that use wide strings (koffi `str16`). */
@@ -74,7 +61,6 @@ export interface KoffiT extends CoreT {
   }
 }
 
-// ─── Core kind → koffi TypeSpec map (exhaustive over CTypeKind sans `function`) ─
 const coreKoffiTypes: Record<Exclude<CTypeKind, 'function'>, KoffiTypeSpec> = {
   void:    'void',
   bool:    'bool',
@@ -92,7 +78,6 @@ const koffiNamedExtras: Record<string, KoffiTypeSpec> = {
   'koffi:intptr':  'intptr_t',
 }
 
-/** Resolve a CType (or raw kind string) to a koffi TypeSpec the loader can use. */
 export function getKoffiType(type: CType<unknown> | string): KoffiTypeSpec {
   if (typeof type !== 'string') {
     const native = nativeKoffiType.get(type as CType<unknown>)
@@ -105,17 +90,9 @@ export function getKoffiType(type: CType<unknown> | string): KoffiTypeSpec {
 function resolveKind(kind: string): KoffiTypeSpec {
   if (kind in coreKoffiTypes) return coreKoffiTypes[kind as keyof typeof coreKoffiTypes]
   if (kind in koffiNamedExtras) return koffiNamedExtras[kind]!
-  // 'function' is handled inline in dlopen (a proto-pointer is built per
-  // callback slot, then registered per call site).
   if (kind === 'function') return 'void *'
-  if (kind === 'koffi:native') {
-    throw new Error('[unffi/koffi] Internal: koffi:native type missing IKoffiCType payload')
-  }
-  const hint =
-    kind.startsWith('bun:')  ? 'This is a Bun-specific type — run with Bun.'   :
-    kind.startsWith('deno:') ? 'This is a Deno-specific type — run with Deno.' :
-    'Unknown type kind.'
-  throw new Error(`[unffi/koffi] Unsupported FFI type "${kind}". ${hint}`)
+  if (kind === 'koffi:native') throw new Error('[unffi/koffi] Internal: koffi:native type missing IKoffiCType payload')
+  throw new Error(`[unffi/koffi] Unsupported FFI type "${kind}". ${runtimeHint(kind, 'node')}`)
 }
 
 function toSpec(ref: CType<unknown> | KoffiTypeSpec): KoffiTypeSpec {
@@ -124,20 +101,10 @@ function toSpec(ref: CType<unknown> | KoffiTypeSpec): KoffiTypeSpec {
   return getKoffiType(ref as CType<unknown>)
 }
 
-/** Promote a value-type spec to a pointer-to-value spec (no-op if already a pointer). */
 function asPointer(ref: CType<unknown> | KoffiTypeSpec): IKoffiCType {
-  const spec = toSpec(ref)
-  if (typeof spec === 'string') {
-    // Already a pointer-shaped type (`void *`, `char *`, `str`, `str16`, …)?
-    if (spec.endsWith('*') || spec === 'str' || spec === 'str16' || spec === 'str32') {
-      return koffi.pointer(spec)  // koffi.pointer accepts a string spec
-    }
-    return koffi.pointer(spec)
-  }
-  return koffi.pointer(spec)
+  return koffi.pointer(toSpec(ref))
 }
 
-// ─── koffi-specific t extensions ──────────────────────────────────────────────
 const koffiExtensions: KoffiT['koffi'] = {
   str16:   { kind: 'koffi:str16'   } as unknown as CType<string>,
   uintptr: { kind: 'koffi:uintptr' } as unknown as CType<bigint>,
@@ -151,7 +118,6 @@ const koffiExtensions: KoffiT['koffi'] = {
   },
 
   array<T>(ref: CType<T> | KoffiTypeSpec, len: number, hint?: KoffiArrayHint): CType<T[]> {
-    // Two-arg form picks the (ref, len: number, hint?) overload unambiguously.
     const native = hint === undefined
       ? koffi.array(toSpec(ref), len)
       : koffi.array(toSpec(ref), len, hint)
@@ -163,9 +129,6 @@ const koffiExtensions: KoffiT['koffi'] = {
   },
 
   out<T>(ref: CType<T> | KoffiTypeSpec): CType<[T]> {
-    // koffi.out wraps a *pointer* type; if the user passed a value type (e.g.
-    // `t.i32`), promote it to a pointer first so the call site can write into
-    // a caller-provided 1-element array.
     return brand<[T]>(koffi.out(asPointer(ref)))
   },
 
@@ -182,8 +145,6 @@ const koffiExtensions: KoffiT['koffi'] = {
   },
 
   encode(value: string, type: KoffiTypeSpec = 'str'): ArrayBuffer {
-    // koffi.encode mutates a ref buffer; we synthesise one large enough for
-    // the value (plus NUL terminator for char-style types).
     const slot = koffi.sizeof(type)
     const size = slot > 0 ? Math.max(slot, value.length + 1) : value.length + 1
     const buf  = new ArrayBuffer(size)
@@ -201,20 +162,14 @@ const koffiExtensions: KoffiT['koffi'] = {
 
 export const t: KoffiT = Object.assign({}, coreT, { koffi: koffiExtensions })
 
-// ─── Implementation ───────────────────────────────────────────────────────────
-
 type CallbackDef = { i: number; cb: CCallback<readonly CType<unknown>[], CType<unknown>> }
 
 let cbCounter = 0
 
-/**
- * Open a shared library using koffi.
- * Works on Node 18+ (and any other runtime where koffi is installed).
- */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
   const lib = koffi.load(path)
   const symbols: Record<string, (...args: unknown[]) => unknown> = {}
-  const registered: IKoffiCType[] = []  // tracked for koffi.unregister() on close()
+  const registered: IKoffiCType[] = []
 
   for (const [name, def] of Object.entries(schema)) {
     // Per-callback proto-pointer types, indexed by arg position.
@@ -230,8 +185,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
           getKoffiType(cb.returnType),
           cb.argTypes.map((tt: CType<unknown>) => getKoffiType(tt)),
         )
-        // koffi requires the callback arg-type to be a *pointer to* the proto,
-        // and `koffi.register` also expects the pointer type — not the proto.
         const ptr = koffi.pointer(proto)
         cbPointerTypes[i] = ptr
         return ptr
@@ -254,7 +207,14 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
       : (...callArgs: unknown[]) => fn(...wrapCallbacks(callArgs, callbackDefs, cbPointerTypes, registered))
   }
 
+  // NO FinalizationRegistry on koffi callbacks. C owns the function
+  // pointer indefinitely (stored callbacks, signal handlers, etc.); GC-driven
+  // unregister races with a live C-side caller. Lifetime is bound to the
+  // library and released in close().
+  let closed = false
   function close() {
+    if (closed) return  // idempotent: safe to call after `using` already disposed
+    closed = true
     for (const reg of registered) {
       try { koffi.unregister(reg as unknown as Parameters<typeof koffi.unregister>[0]) } catch { /* already gone */ }
     }

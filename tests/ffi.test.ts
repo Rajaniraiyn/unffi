@@ -1,36 +1,12 @@
-/**
- * unffi cross-runtime test suite
- *
- * One file. Runs on Bun, Deno, and Node.js.
- * Behaviour is normalised by adapters — tests use the same assertions on every
- * runtime. Runtime-specific FEATURES (t.bun.*, t.deno.*, t.koffi.*) are tested
- * inline guarded by globalThis detection.
- *
- * Compile fixture first:
- *   macOS:  clang -dynamiclib -o /tmp/unffi_math.dylib tests/fixtures/math.c
- *   Linux:  clang -shared -fPIC -o /tmp/unffi_math.so  tests/fixtures/math.c
- *
- * Run:
- *   Bun:   bun test tests/ffi.test.ts
- *   Node:  npx vitest run tests/ffi.test.ts
- *   Deno:  deno test --allow-ffi --allow-read tests/ffi.test.ts
- */
-
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { dlopen, t } from '../src/adapters/bun.js'
-
-// ─── runtime detection ────────────────────────────────────────────────────────
 
 const IS_BUN  = 'Bun'  in globalThis
 const IS_DENO = 'Deno' in globalThis
 const IS_NODE = !IS_BUN && !IS_DENO
 
-// ─── lib path ─────────────────────────────────────────────────────────────────
-
 const ext = process.platform === 'darwin' ? 'dylib' : 'so'
 const LIB  = `/tmp/unffi_math.${ext}`
-
-// ─── open lib ─────────────────────────────────────────────────────────────────
 
 let lib: ReturnType<typeof openLib>
 
@@ -63,13 +39,9 @@ function openLib() {
 beforeAll(() => { lib = openLib() })
 afterAll(()  => lib.close())
 
-// ─── void ─────────────────────────────────────────────────────────────────────
-
 describe('void', () => {
   test('noop() returns undefined', () => expect(lib.symbols.noop()).toBeUndefined())
 })
-
-// ─── integers (common to all runtimes) ───────────────────────────────────────
 
 describe('i32', () => {
   test('add_i32(10, 20) === 30',   () => expect(lib.symbols.add_i32(10, 20)).toBe(30))
@@ -106,8 +78,6 @@ describe('bool', () => {
   test('gt_i32(4, 4) === false', () => expect(lib.symbols.gt_i32(4, 4)).toBe(false))
 })
 
-// ─── cstring — adapters normalise: plain string in → plain string out ─────────
-
 describe('cstring', () => {
   test('greet("World") === "Hello, World"', () => {
     expect(lib.symbols.greet('World')).toBe('Hello, World')
@@ -116,8 +86,6 @@ describe('cstring', () => {
     expect(typeof lib.symbols.greet('test')).toBe('string')
   })
 })
-
-// ─── buffer ───────────────────────────────────────────────────────────────────
 
 describe('buffer', () => {
   test('sum_i32([1,2,3,4,5]) === 15', () => {
@@ -128,8 +96,6 @@ describe('buffer', () => {
     expect(lib.symbols.sum_i32(new Int32Array(0), 0)).toBe(0)
   })
 })
-
-// ─── callbacks ────────────────────────────────────────────────────────────────
 
 describe('callbacks — apply', () => {
   test('apply(x => x * 2, 5) === 10', () => expect(lib.symbols.apply((x: number) => x * 2, 5)).toBe(10))
@@ -173,8 +139,6 @@ describe('callbacks — cstring through callback (normalised)', () => {
   })
 })
 
-// ─── async symbols ────────────────────────────────────────────────────────────
-
 describe('async: true', () => {
   test('add_i32 async resolves to correct value', async () => {
     await using asyncLib = dlopen(LIB, {
@@ -183,8 +147,6 @@ describe('async: true', () => {
     expect(await asyncLib.symbols.add_i32(10, 20)).toBe(30)
   })
 })
-
-// ─── Disposable protocol ─────────────────────────────────────────────────────
 
 describe('Disposable', () => {
   test('has Symbol.dispose',       () => { const l = openLib(); expect(typeof l[Symbol.dispose]).toBe('function'); l.close() })
@@ -198,9 +160,18 @@ describe('Disposable', () => {
     expect(l.symbols.add_i32(2, 2)).toBe(4)
   })
   test('explicit close() does not throw', () => expect(() => openLib().close()).not.toThrow())
+  test('double close() is a no-op (idempotent)', () => {
+    const l = openLib()
+    l.close()
+    expect(() => l.close()).not.toThrow()
+  })
+  test('using + manual close() is safe', () => {
+    expect(() => {
+      using l = openLib()
+      l.close()  // explicit close before `using` triggers dispose
+    }).not.toThrow()
+  })
 })
-
-// ─── cross-platform type rejection ───────────────────────────────────────────
 
 describe('wrong-platform type → helpful error', () => {
   test('deno:usize on non-Deno throws with Deno guidance', () => {
@@ -214,16 +185,10 @@ describe('wrong-platform type → helpful error', () => {
   })
 })
 
-// ─── runtime-specific FEATURES (inline, guarded) ─────────────────────────────
-
-// These tests run only on the matching runtime and exercise types that only
-// exist in that runtime's adapter (t.bun.*, t.deno.*, t.koffi.*).
-
 if (IS_BUN) {
   const { t: tBun } = await import('../src/adapters/bun.js')
 
   describe('Bun-specific: t.bun.i64_fast', () => {
-    // i64_fast returns number when the value fits in a safe integer, bigint otherwise
     test('small value returns number', async () => {
       await using l = dlopen(LIB, {
         identity_i64: { args: [tBun.bun.i64_fast], returns: tBun.bun.i64_fast },

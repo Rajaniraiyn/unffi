@@ -1,68 +1,35 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { dlopen as koffiDlopen, t as koffiT, type KoffiT } from './koffi.js'
+import { runtimeHint } from './hints.js'
 
 export type { InferLibrary, KoffiT }
 
-// ─── node:ffi version gating ─────────────────────────────────────────────────
-//
-// node:ffi was introduced as --experimental-ffi in Node 26. We probed the API
-// surface in 26.3.0:
-//
-//   import ffi from 'node:ffi'
-//   ffi.dlopen(path, schema) → { lib: DynamicLibrary, functions, [Symbol.dispose] }
-//   new ffi.DynamicLibrary(path)  → real instance with prototype methods
-//   ffi.types: { VOID:'void', INT_32:'int32', INT_64:'int64', POINTER:'pointer', ... }
-//   DynamicLibrary.prototype: functions, close, getFunction, getFunctions,
-//                             getSymbol, getSymbols, registerCallback,
-//                             unregisterCallback, refCallback, unrefCallback
-//   lib[Symbol.dispose] present; lib[Symbol.asyncDispose] absent.
-//
-// Calling ABI in 26.3.0 is broken: every wrapped function reports
-// `Invalid argument count: expected 0, got N` regardless of the parameter list
-// in the schema. fn.length is always 0. Until that bug is fixed upstream we
-// fall back to koffi and emit a warning so users know native FFI was detected
-// but isn't usable yet.
-//
-// NODE_FFI_STABLE_VERSION: the first Node major where node:ffi can call
-// C functions with typed arguments from JavaScript. Bump this once a release
-// ships with the fix.
+// node:ffi ABI broken in Node 26.3.0 (every call reports "expected 0 arguments").
+// Bump once a release ships the fix.
 export const NODE_FFI_STABLE_VERSION = Infinity
 
-// ─── Re-export koffi's t (KoffiT) — the primary backend on Node ──────────────
-// Node adapter uses koffi for actual calls; users get KoffiT so they can opt
-// into koffi-specific FFI types (t.koffi.str16, t.koffi.uintptr, ...).
 export const t: KoffiT = koffiT
 
 const nodeMajor = parseInt(process.versions.node.split('.')[0] ?? '0', 10)
 
 type FfiState = 'unavailable' | 'needs-flag' | 'available-but-incomplete' | 'available'
 
-// node:ffi module shape — derived from runtime probing, not redeclared here as
-// type definitions (none are published yet). Kept narrow on purpose: we only
-// touch the surface we actually use.
 interface NodeFFIFunctionDef {
   parameters: readonly string[]
   result: string
 }
 interface NodeFFIDynamicLibrary {
   readonly functions: Record<string, (...args: unknown[]) => unknown>
-  getFunction(name: string, def: NodeFFIFunctionDef): (...args: unknown[]) => unknown
-  getFunctions(defs: Record<string, NodeFFIFunctionDef>): Record<string, (...args: unknown[]) => unknown>
   registerCallback(def: NodeFFIFunctionDef, fn: (...args: unknown[]) => unknown): unknown
   unregisterCallback(handle: unknown): void
   close(): void
-  [Symbol.dispose](): void
 }
 interface NodeFFIModule {
-  readonly DynamicLibrary: new (path: string) => NodeFFIDynamicLibrary
-  dlopen(path: string): { lib: NodeFFIDynamicLibrary; functions: Record<string, never>; [Symbol.dispose](): void }
   dlopen(path: string, schema: Record<string, NodeFFIFunctionDef>): {
     lib: NodeFFIDynamicLibrary
     functions: Record<string, (...args: unknown[]) => unknown>
-    [Symbol.dispose](): void
   }
-  readonly types: Readonly<Record<string, string>>
 }
 
 let nodeFfi: NodeFFIModule | null = null
@@ -77,9 +44,6 @@ async function detectNodeFFI(): Promise<FfiState> {
     return nodeMajor >= NODE_FFI_STABLE_VERSION ? 'available' : 'available-but-incomplete'
   } catch (e: unknown) {
     const code = (e as NodeJS.ErrnoException).code
-    // Node 26+ with flag missing: most builds report ERR_UNKNOWN_BUILTIN_MODULE
-    // when --experimental-ffi isn't passed (the module is hidden until the flag
-    // is set). Some builds may surface ERR_EXPERIMENTAL_FEATURE_NOT_ENABLED.
     if (code === 'ERR_EXPERIMENTAL_FEATURE_NOT_ENABLED') return 'needs-flag'
     if (code === 'ERR_UNKNOWN_BUILTIN_MODULE' && nodeMajor >= 26) return 'needs-flag'
     return 'unavailable'
@@ -103,10 +67,6 @@ if (ffiState === 'available-but-incomplete') {
   )
 }
 
-// ─── Type mapping: CTypeKind → node:ffi type string ──────────────────────────
-// Derived directly from `ffi.types` at runtime (no manual redeclaration). The
-// values in `ffi.types` are the strings that node:ffi's parameters/result
-// fields accept, so we just map our CTypeKind onto the relevant entries.
 const coreNodeFfiTypes: Record<CTypeKind, string> = {
   void:     'void',
   bool:     'bool',
@@ -122,14 +82,8 @@ const coreNodeFfiTypes: Record<CTypeKind, string> = {
 function nodeFfiTypeFor(kind: string): string {
   const mapped = coreNodeFfiTypes[kind as CTypeKind]
   if (mapped !== undefined) return mapped
-  const hint =
-    kind.startsWith('bun:')  ? 'This is a Bun-specific type — run with Bun.' :
-    kind.startsWith('deno:') ? 'This is a Deno-specific type — run with Deno.' :
-    'Unknown type kind.'
-  throw new Error(`[unffi/node] Unsupported FFI type "${kind}". ${hint}`)
+  throw new Error(`[unffi/node] Unsupported FFI type "${kind}". ${runtimeHint(kind, 'node')}`)
 }
-
-// ─── Native node:ffi adapter ──────────────────────────────────────────────────
 
 type CallbackDef = { i: number; cb: CCallback<readonly CType<unknown>[], CType<unknown>> }
 
@@ -163,7 +117,6 @@ function nativeDlopen<const S extends SymbolsSchema>(path: string, schema: S): I
     const cbs = callbackDefs[name]
 
     if (def.async) {
-      // node:ffi has no built-in async path yet — fall back to a Promise wrapper.
       symbols[name] = cbs
         ? (...callArgs: unknown[]) =>
             Promise.resolve().then(() => rawFn(...wrapCallbacks(handle.lib, callArgs, cbs, liveCallbacks)))
@@ -175,7 +128,13 @@ function nativeDlopen<const S extends SymbolsSchema>(path: string, schema: S): I
     }
   }
 
+  // NO FinalizationRegistry on node:ffi callbacks. C owns the
+  // function pointer indefinitely; GC-driven unregister races with a live
+  // C-side caller. Lifetime is bound to the library, freed in close().
+  let closed = false
   function close() {
+    if (closed) return  // idempotent: safe to call after `using` already disposed
+    closed = true
     for (const h of liveCallbacks) handle.lib.unregisterCallback(h)
     liveCallbacks.length = 0
     handle.lib.close()
@@ -210,21 +169,9 @@ function wrapCallbacks(
   return wrapped
 }
 
-// ─── dlopen ───────────────────────────────────────────────────────────────────
-
-/**
- * Open a shared library on Node.js.
- *
- * Routing:
- *   Node >= NODE_FFI_STABLE_VERSION + --experimental-ffi → native node:ffi
- *   Node 26 + --experimental-ffi (ABI incomplete)        → koffi + warning
- *   Node < 26 or no flag                                 → koffi (optional peer dep)
- */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
   if (ffiState === 'available') return nativeDlopen(path, schema)
   return koffiDlopen(path, schema)
 }
 
-// Surface CoreT for users that want the base type (re-exported for parity with
-// other adapters that export their narrow runtime-specific T interface).
 export type { CoreT }

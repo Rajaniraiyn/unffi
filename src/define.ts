@@ -3,7 +3,6 @@ import type { CType, CCallback, InferCType, InferTuple } from './types.js'
 export interface SymbolDef {
   readonly args: readonly CType<any>[]
   readonly returns: CType<any>
-  /** Run in a background thread — Bun, Deno, and koffi all support this */
   readonly async?: boolean
 }
 
@@ -14,7 +13,6 @@ type InferReturn<S extends SymbolDef> =
     ? Promise<InferCType<S['returns']>>
     : InferCType<S['returns']>
 
-// Callbacks in args: user passes a plain JS function, adapter wraps it into a native pointer
 type MapArg<T extends CType<any>> =
   T extends CCallback<infer A extends readonly CType<any>[], infer R extends CType<any>>
     ? (...args: InferTuple<A>) => InferCType<R>
@@ -32,7 +30,6 @@ export type InferSymbolFn<S extends SymbolDef> =
 
 export type InferLibrary<S extends SymbolsSchema> = {
   readonly symbols: { readonly [K in keyof S]: InferSymbolFn<S[K]> }
-  /** Explicit close — also called automatically via `using` / `await using`. */
   close(): void
   [Symbol.dispose](): void
   [Symbol.asyncDispose](): Promise<void>

@@ -1,5 +1,3 @@
-// C ABI type tokens — phantom types for TypeScript inference, zero runtime cost
-
 export interface CType<T> {
   readonly _type: T
   readonly kind: CTypeKind
@@ -13,7 +11,6 @@ export type CTypeKind =
   | 'cstring' | 'pointer' | 'buffer'
   | 'function'
 
-// Opaque pointer type — bigint under the hood (Bun/Deno both use bigint for pointers)
 declare const PtrBrand: unique symbol
 export type Ptr = bigint & { readonly [PtrBrand]: true }
 
@@ -23,7 +20,6 @@ function c<T>(kind: CTypeKind): CType<T> {
 
 export type InferCType<T extends CType<any>> = T extends CType<infer U> ? U : never
 
-// Recursive tuple mapping — more reliable than mapped type for narrow const tuples
 export type InferTuple<T extends readonly CType<any>[]> =
   T extends readonly []
     ? []
@@ -31,7 +27,6 @@ export type InferTuple<T extends readonly CType<any>[]> =
       ? [InferCType<H>, ...InferTuple<R>]
       : { [K in keyof T]: T[K] extends CType<infer U> ? U : never }
 
-// Function-pointer / callback type
 export interface CCallback<
   Args extends readonly CType<any>[],
   Ret extends CType<any>,
@@ -40,10 +35,6 @@ export interface CCallback<
   readonly argTypes: Args
   readonly returnType: Ret
 }
-
-// ─── CoreT interface ──────────────────────────────────────────────────────────
-// Named interface for the base `t` object so adapters can extend it cleanly
-// and IDE hover shows a readable type instead of an opaque intersection.
 
 export interface CoreT {
   readonly void:    CType<void>

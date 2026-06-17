@@ -2,15 +2,10 @@ import { dlopen as bunDlopen, FFIType, JSCallback, CString, ptr as bunPtr } from
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
+import { runtimeHint } from './hints.js'
 
 export type { InferLibrary }
 
-// ─── BunT — extends CoreT with Bun-specific FFI types ─────────────────────────
-//
-// These are EXTRA types only available via the "bun" export condition. They map
-// directly to Bun's bun:ffi FFIType enum and surface features (fast paths,
-// NAPI interop) that other runtimes don't have. The user-visible JS type is
-// taken straight from Bun's own FFITypeToReturnsType so we never re-declare it.
 export interface BunT extends CoreT {
   readonly bun: {
     /**
@@ -30,7 +25,6 @@ export interface BunT extends CoreT {
   }
 }
 
-// ─── Core type map (exhaustive over CTypeKind) ────────────────────────────────
 const coreFFITypes: Record<CTypeKind, FFIType> = {
   void:     FFIType.void,
   bool:     FFIType.bool,
@@ -50,7 +44,6 @@ const coreFFITypes: Record<CTypeKind, FFIType> = {
   function: FFIType.function,
 }
 
-// ─── Bun-specific types ───────────────────────────────────────────────────────
 const bunFFITypes: Record<string, FFIType> = {
   'bun:i64_fast':   FFIType.i64_fast,
   'bun:u64_fast':   FFIType.u64_fast,
@@ -63,15 +56,9 @@ const allFFITypes: Record<string, FFIType> = { ...coreFFITypes, ...bunFFITypes }
 function getFFIType(kind: string): FFIType {
   const type = allFFITypes[kind]
   if (type !== undefined) return type
-  const hint =
-    kind.startsWith('deno:')  ? 'This is a Deno-specific type — run with Deno. See https://docs.deno.com/runtime/fundamentals/ffi/' :
-    kind.startsWith('node:')  ? 'This is a Node.js-specific type — run with Node.js.' :
-    kind.startsWith('koffi:') ? 'This is a koffi-specific type — run with Node.js and install koffi. See https://koffi.dev' :
-    'Unknown type kind.'
-  throw new Error(`[unffi/bun] Unsupported FFI type "${kind}". ${hint}`)
+  throw new Error(`[unffi/bun] Unsupported FFI type "${kind}". ${runtimeHint(kind, 'bun')}`)
 }
 
-// ─── Bun-specific t extensions ────────────────────────────────────────────────
 const bunExtensions = {
   i64_fast:   { kind: 'bun:i64_fast'   } as unknown as CType<number | bigint>,
   u64_fast:   { kind: 'bun:u64_fast'   } as unknown as CType<number | bigint>,
@@ -81,27 +68,6 @@ const bunExtensions = {
 
 export const t: BunT = Object.assign({}, coreT, { bun: bunExtensions })
 
-// ─── dlopen ───────────────────────────────────────────────────────────────────
-
-// Bun's Pointer brand
-type BunPtr = number & { __pointer__: null }
-
-/**
- * Open a shared library. Symbols are typed from the schema.
- *
- * Under Bun this uses `bun:ffi` directly. Normalisations applied so the
- * surface is identical to other runtimes:
- *
- *   - cstring INPUT  : plain `string`  → null-terminated `Buffer`
- *     (Bun's FFI rejects raw JS strings; we encode here so users pass strings).
- *   - cstring OUTPUT : `CString`       → plain `string` primitive
- *   - cstring in callback args (C → JS): raw pointer `number` → decoded `string`
- *     (Bun delivers a Pointer to JSCallback; we wrap with `new CString(p).toString()`).
- *   - buffer args    : `TypedArray`    → zero-copy pointer via `ptr(view)`
- *     (Bun accepts a TypedArray directly for FFIType.ptr, but `ptr()` skips
- *     a small per-call coercion in the JIT wrapper.)
- *   - JSCallbacks are tracked and closed alongside the library.
- */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
   const bunSymbols: Record<string, { args: FFIType[]; returns: FFIType; nonblocking?: boolean }> = {}
 
@@ -114,6 +80,11 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
   }
 
   const lib = bunDlopen(path, bunSymbols)
+  // NO FinalizationRegistry around JSCallbacks. C owns the function
+  // pointer indefinitely — a library can stash a callback (logger, atexit,
+  // signal handler) and invoke it long after the JS function is unreachable.
+  // GC-driven free would race with a live C-side pointer → use-after-free.
+  // Lifetime is bound to the library and freed in close().
   const callbacks = new Map<string, JSCallback>()
 
   const symbols: Record<string, (...args: unknown[]) => unknown> = {}
@@ -121,7 +92,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
   for (const [name, def] of Object.entries(schema)) {
     const rawFn = (lib.symbols as Record<string, (...a: unknown[]) => unknown>)[name]!
 
-    // Pre-compute argument transform indices so the hot path is branch-light.
     const cstringInIdx = def.args
       .map((a: CType<unknown>, i: number) => (a.kind === 'cstring'  ? i : -1))
       .filter((i: number) => i !== -1)
@@ -133,7 +103,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
       .filter((i: number) => i !== -1)
     const returnsCstring = def.returns.kind === 'cstring'
 
-    // Fast path: no normalisation needed — return Bun's raw function directly.
     if (
       cstringInIdx.length === 0 &&
       bufferInIdx.length  === 0 &&
@@ -145,7 +114,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     }
 
     symbols[name] = (...args: unknown[]) => {
-      // Copy once; mutate the copy in-place.
       const wrapped = args.length === def.args.length ? args.slice() : [...args]
 
       for (const i of cstringInIdx) {
@@ -155,10 +123,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
 
       for (const i of bufferInIdx) {
         const v = wrapped[i]
-        // ArrayBufferView covers TypedArrays + DataView. Skip if user already
-        // passed a Pointer (number). For empty views Bun's `ptr()` throws —
-        // fall through and let Bun's FFI accept the TypedArray directly
-        // (it treats a zero-length view as a null pointer).
         if (v != null && typeof v === 'object' && ArrayBuffer.isView(v) && v.byteLength > 0) {
           wrapped[i] = bunPtr(v as NodeJS.TypedArray)
         }
@@ -174,11 +138,9 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
         const wrappedFn = cbCstrIdx.length === 0
           ? userFn
           : (...cbArgs: unknown[]) => {
-              // Bun delivers a raw Pointer (number) for cstring callback args.
-              // Decode to a plain JS string so user callbacks are runtime-agnostic.
               for (const j of cbCstrIdx) {
                 const p = cbArgs[j]
-                cbArgs[j] = p == null ? null : new CString(p as BunPtr).toString()
+                cbArgs[j] = p == null ? null : new CString(p as number & { __pointer__: null }).toString()
               }
               return userFn(...cbArgs)
             }
@@ -193,8 +155,6 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
 
       const result = rawFn(...wrapped)
 
-      // CString extends String — coerce to a plain string primitive. For async
-      // (nonblocking) symbols the result is a Promise; thread the decode through.
       if (returnsCstring) {
         if (result instanceof Promise) {
           return result.then((r) => (r instanceof String ? r.toString() : r))
@@ -205,7 +165,10 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     }
   }
 
+  let closed = false
   function close() {
+    if (closed) return  // idempotent: safe to call after `using` already disposed
+    closed = true
     for (const cb of callbacks.values()) cb.close()
     callbacks.clear()
     lib.close()
