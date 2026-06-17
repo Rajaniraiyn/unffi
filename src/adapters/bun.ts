@@ -1,13 +1,12 @@
 import { dlopen as bunDlopen, FFIType, JSCallback } from 'bun:ffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind } from '../types.js'
-import { t } from '../types.js'
+import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
-export { t }
 
-// ponytail: Bun uses FFIType enum; callbacks are passed as JSCallback.ptr (pointer)
-const toFFIType: Record<CTypeKind, FFIType> = {
+// ─── Core type map (exhaustive over CTypeKind) ────────────────────────────────
+const coreFFITypes: Record<CTypeKind, FFIType> = {
   void:     FFIType.void,
   bool:     FFIType.bool,
   i8:       FFIType.int8_t,
@@ -26,12 +25,48 @@ const toFFIType: Record<CTypeKind, FFIType> = {
   function: FFIType.function,
 }
 
+// ─── Bun-specific types ───────────────────────────────────────────────────────
+const bunFFITypes: Record<string, FFIType> = {
+  'bun:i64_fast':  FFIType.i64_fast,
+  'bun:u64_fast':  FFIType.u64_fast,
+  'bun:napi_env':  FFIType.napi_env,
+  'bun:napi_value': FFIType.napi_value,
+}
+
+const allFFITypes: Record<string, FFIType> = { ...coreFFITypes, ...bunFFITypes }
+
+function getFFIType(kind: string): FFIType {
+  const type = allFFITypes[kind]
+  if (type !== undefined) return type
+  const hint =
+    kind.startsWith('deno:') ? 'This is a Deno-specific type — run with Deno. See https://docs.deno.com/runtime/fundamentals/ffi/' :
+    kind.startsWith('node:') ? 'This is a Node.js-specific type — run with Node.js. See https://koffi.dev' :
+    'Unknown type kind.'
+  throw new Error(`[unffi/bun] Unsupported FFI type "${kind}". ${hint}`)
+}
+
+// ─── Bun-specific t extensions ────────────────────────────────────────────────
+// These are only available when resolved via the "bun" export condition.
+const bunExtensions = {
+  /** i64 that returns `number` when the value fits safely, `BigInt` otherwise */
+  i64_fast:   { kind: 'bun:i64_fast'  } as unknown as CType<number | bigint>,
+  /** u64 that returns `number` when the value fits safely, `BigInt` otherwise */
+  u64_fast:   { kind: 'bun:u64_fast'  } as unknown as CType<number | bigint>,
+  /** NAPI environment pointer (for NAPI-based native addons) */
+  napi_env:   { kind: 'bun:napi_env'  } as unknown as CType<unknown>,
+  /** NAPI value (for NAPI-based native addons) */
+  napi_value: { kind: 'bun:napi_value' } as unknown as CType<unknown>,
+}
+
+export const t = Object.assign({}, coreT, { bun: bunExtensions })
+
+// ─── dlopen ───────────────────────────────────────────────────────────────────
+
 /**
  * Open a shared library. Symbols are typed from the schema.
  * Under Bun this uses `bun:ffi` — zero overhead, native perf.
  */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
-  // Bun supports synchronous FFI — no restriction on sync symbols
   const SUPPORTS_SYNC = true as const
 
   const bunSymbols: Record<string, { args: FFIType[]; returns: FFIType; nonblocking?: boolean }> = {}
@@ -41,8 +76,8 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
       `[unffi/bun] Synchronous FFI is not supported in this runtime. Add \`async: true\` to "${name}".`,
     )
     bunSymbols[name] = {
-      args:    def.args.map((a: CType<unknown>) => toFFIType[a.kind]),
-      returns: toFFIType[def.returns.kind],
+      args:    def.args.map((a: CType<unknown>) => getFFIType(a.kind)),
+      returns: getFFIType(def.returns.kind),
       ...(def.async && { nonblocking: true }),
     }
   }
@@ -67,8 +102,8 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
         for (const i of callbackIndexes) {
           const cb = def.args[i] as CCallback<readonly CType<unknown>[], CType<unknown>>
           const jsCb = new JSCallback(args[i] as (...a: unknown[]) => unknown, {
-            args:    cb.argTypes.map((a: CType<unknown>) => toFFIType[a.kind]),
-            returns: toFFIType[cb.returnType.kind],
+            args:    cb.argTypes.map((a: CType<unknown>) => getFFIType(a.kind)),
+            returns: getFFIType(cb.returnType.kind),
           })
           callbacks.set(`${name}:${i}`, jsCb)
           wrapped[i] = jsCb.ptr

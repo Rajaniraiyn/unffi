@@ -1,46 +1,69 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind } from '../types.js'
-import { t } from '../types.js'
+import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
-export { t }
 
-// ponytail: Deno uses string type names; cstring → pointer (read via UnsafePointerView)
-type DenoNativeType =
-  | 'void' | 'bool'
-  | 'u8' | 'i8' | 'u16' | 'i16' | 'u32' | 'i32' | 'u64' | 'i64'
-  | 'f32' | 'f64'
-  | 'pointer' | 'buffer' | 'function'
-
-const toDenoType: Record<CTypeKind, DenoNativeType> = {
+// ─── Core type map — uses Deno.NativeResultType directly, no manual redefinition
+const coreDenoTypes: Record<CTypeKind, Deno.NativeResultType> = {
   void:     'void',
   bool:     'bool',
   i8:       'i8',  i16: 'i16', i32: 'i32', i64: 'i64',
   u8:       'u8',  u16: 'u16', u32: 'u32', u64: 'u64',
   f32:      'f32', f64: 'f64',
+  // cstring is a pointer in Deno — read the bytes via Deno.UnsafePointerView
   cstring:  'pointer',
   pointer:  'pointer',
   buffer:   'buffer',
   function: 'function',
 }
 
+// ─── Deno-specific types ──────────────────────────────────────────────────────
+const denoExtraTypes: Record<string, Deno.NativeResultType> = {
+  'deno:usize': 'usize',
+  'deno:isize': 'isize',
+}
+
+const allDenoTypes: Record<string, Deno.NativeResultType> = { ...coreDenoTypes, ...denoExtraTypes }
+
+function getDenoType(kind: string): Deno.NativeResultType {
+  const type = allDenoTypes[kind]
+  if (type !== undefined) return type
+  const hint =
+    kind.startsWith('bun:')  ? 'This is a Bun-specific type — run with Bun. See https://bun.sh/docs/api/ffi' :
+    kind.startsWith('node:') ? 'This is a Node.js-specific type — run with Node.js. See https://koffi.dev' :
+    'Unknown type kind.'
+  throw new Error(`[unffi/deno] Unsupported FFI type "${kind}". ${hint}`)
+}
+
+// ─── Deno-specific t extensions ───────────────────────────────────────────────
+// These are only available when resolved via the "deno" export condition.
+const denoExtensions = {
+  /** Pointer-sized unsigned integer (64-bit on 64-bit systems) → `bigint` */
+  usize: { kind: 'deno:usize' } as unknown as CType<bigint>,
+  /** Pointer-sized signed integer (64-bit on 64-bit systems) → `bigint` */
+  isize: { kind: 'deno:isize' } as unknown as CType<bigint>,
+}
+
+export const t = Object.assign({}, coreT, { deno: denoExtensions })
+
+// ─── dlopen ───────────────────────────────────────────────────────────────────
+
 /**
  * Open a shared library. Symbols are typed from the schema.
  * Under Deno this uses `Deno.dlopen` — native perf, requires `--allow-ffi`.
  */
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
-  const denoSymbols: Record<string, Deno.ForeignFunction> = {}
-
-  // Deno supports synchronous FFI — no restriction on sync symbols
   const SUPPORTS_SYNC = true as const
+  const denoSymbols: Record<string, Deno.ForeignFunction> = {}
 
   for (const [name, def] of Object.entries(schema)) {
     if (!SUPPORTS_SYNC && !def.async) throw new Error(
       `[unffi/deno] Synchronous FFI is not supported in this runtime. Add \`async: true\` to "${name}".`,
     )
     denoSymbols[name] = {
-      parameters: def.args.map((a: CType<unknown>) => toDenoType[a.kind] as Deno.NativeType),
-      result:     toDenoType[def.returns.kind] as Deno.NativeResultType,
+      parameters: def.args.map((a: CType<unknown>) => getDenoType(a.kind) as Deno.NativeType),
+      result:     getDenoType(def.returns.kind),
       ...(def.async && { nonblocking: true }),
     }
   }
@@ -58,6 +81,7 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     }
     throw e
   }
+
   const callbacks = new Map<string, Deno.UnsafeCallback>()
 
   const symbols = new Proxy(
@@ -80,8 +104,8 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
             const cb = def.args[i] as CCallback<readonly CType<unknown>[], CType<unknown>>
             const unsafeCb = new Deno.UnsafeCallback(
               {
-                parameters: cb.argTypes.map((a: CType<unknown>) => toDenoType[a.kind] as Deno.NativeType),
-                result:     toDenoType[cb.returnType.kind] as Deno.NativeResultType,
+                parameters: cb.argTypes.map((a: CType<unknown>) => getDenoType(a.kind) as Deno.NativeType),
+                result:     getDenoType(cb.returnType.kind),
               },
               args[i] as (...a: unknown[]) => unknown,
             )
