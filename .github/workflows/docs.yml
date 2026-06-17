@@ -31,6 +31,11 @@ jobs:
       # `import from 'unffi'`, which needs dist/*.d.ts to exist.
       - run: bun run build
 
+      # Re-run install so bun refreshes its snapshot of the `unffi` file:
+      # dep (docs/package.json has `"unffi": "../."`). The initial install
+      # snapshotted the source dir before dist/ existed.
+      - run: bun install
+
       - run: bun run --cwd docs build
 
       - uses: actions/configure-pages@v5
