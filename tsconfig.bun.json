@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "tsBuildInfoFile": "node_modules/.cache/bun.tsbuildinfo"
+  },
+  "files": [
+    "src/types.ts",
+    "src/define.ts",
+    "src/adapters/bun.ts"
+  ]
+}

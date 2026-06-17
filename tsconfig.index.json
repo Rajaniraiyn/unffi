@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": [],
+    "tsBuildInfoFile": "node_modules/.cache/index.tsbuildinfo"
+  },
+  "files": [
+    "src/types.ts",
+    "src/define.ts",
+    "src/index.ts"
+  ],
+  "references": [
+    { "path": "./tsconfig.bun.json" },
+    { "path": "./tsconfig.deno.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

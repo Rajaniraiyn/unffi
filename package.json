@@ -1,0 +1,52 @@
+{
+  "name": "unffi",
+  "version": "0.1.0",
+  "description": "Universal FFI for Bun, Deno, and Node.js — one schema, runtime-native performance",
+  "type": "module",
+  "exports": {
+    ".": {
+      "bun": "./dist/adapters/bun.js",
+      "deno": "./dist/adapters/deno.js",
+      "node": "./dist/adapters/node.js",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "default": "./dist/types.js"
+    }
+  },
+  "files": ["dist", "src"],
+  "scripts": {
+    "build": "tsgo -b tsconfig.json",
+    "build:clean": "tsgo -b --clean tsconfig.json && tsgo -b tsconfig.json",
+    "typecheck": "tsgo -b tsconfig.json --dry",
+    "dev": "tsgo -b --watch tsconfig.json"
+  },
+  "optionalDependencies": {
+    "koffi": "^2.9.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/deno": "^2.7.0",
+    "@types/node": "latest",
+    "@typescript/native-preview": "latest"
+  },
+  "peerDependencies": {
+    "typescript": ">=5.0.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "bun": ">=1.0.0",
+    "node": ">=18.0.0"
+  },
+  "keywords": ["ffi", "bun", "deno", "node", "native", "dylib", "unjs"],
+  "license": "MIT",
+  "trustedDependencies": [
+    "koffi"
+  ]
+}
