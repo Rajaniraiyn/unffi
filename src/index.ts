@@ -18,7 +18,7 @@ export async function dlopen<const S extends SymbolsSchema>(
     const { dlopen: denoDlopen } = await import('./adapters/deno.js')
     return denoDlopen(path, schema)
   }
-  // Universal fallback: koffi works on Node 18+ and any other JS runtime with npm support
-  const { dlopen: koffiDlopen } = await import('./adapters/koffi.js')
-  return koffiDlopen(path, schema)
+  // Fallback: node adapter (tries native node:ffi, then koffi) — Bun → Deno → Node → koffi
+  const { dlopen: nodeDlopen } = await import('./adapters/node.js')
+  return nodeDlopen(path, schema)
 }
