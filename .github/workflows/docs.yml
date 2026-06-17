@@ -42,7 +42,7 @@ jobs:
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/out
+          path: docs/.output/public
 
       - id: deploy
         uses: actions/deploy-pages@v4
