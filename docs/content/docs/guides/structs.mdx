@@ -1,0 +1,109 @@
+---
+title: Structs on Node.js
+description: Define and use C structs with t.koffi on Node.js.
+---
+
+koffi (Node.js backend) has the richest struct support. This covers the common patterns.
+
+## Passing a struct by value
+
+```c title="geom.c"
+typedef struct { double x; double y; } Point;
+double distance(Point p);
+Point translate(Point p, double dx, double dy);
+```
+
+```ts
+import { dlopen, t } from 'unffi'
+
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+await using lib = await dlopen('./geom.dylib', {
+  distance:  { args: [Point],               returns: t.f64 },
+  translate: { args: [Point, t.f64, t.f64], returns: Point },
+})
+
+lib.symbols.distance({ x: 3.0, y: 4.0 })               // 5.0
+lib.symbols.translate({ x: 0.0, y: 0.0 }, 10.0, 20.0)  // { x: 10, y: 20 }
+```
+
+## Output parameters
+
+C functions that write through a pointer:
+
+```c title="geom.c"
+void get_origin(Point* out);
+void get_bounds(Point* min, Point* max);
+```
+
+```ts
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+await using lib = await dlopen('./geom.dylib', {
+  get_origin: { args: [t.koffi.out(Point)],                     returns: t.void },
+  get_bounds: { args: [t.koffi.out(Point), t.koffi.out(Point)], returns: t.void },
+})
+
+const [origin] = lib.symbols.get_origin()
+const [min, max] = lib.symbols.get_bounds()
+```
+
+`t.koffi.out(type)` marks the argument as output-only. The function returns the written value.
+
+Use `t.koffi.inout(type)` when the C function reads the initial value and writes a result back.
+
+## Nested structs
+
+```ts
+const Vec3 = t.koffi.struct({ x: t.f32, y: t.f32, z: t.f32 })
+const Transform = t.koffi.struct({ position: Vec3, rotation: Vec3, scale: Vec3 })
+```
+
+## Arrays
+
+```ts
+const Matrix4 = t.koffi.array(t.f32, 16)   // float[16]
+const ByteBuf = t.koffi.array(t.u8, 64)    // uint8_t[64]
+
+await using lib = await dlopen('./math.dylib', {
+  mat_mul: { args: [Matrix4, Matrix4, t.koffi.out(Matrix4)], returns: t.void },
+})
+```
+
+## Opaque handles
+
+When native code gives you a handle you just pass around:
+
+```c title="db.c"
+typedef struct DB DB;
+DB* db_open(const char* path);
+int db_exec(DB* db, const char* sql);
+void db_close(DB* db);
+```
+
+```ts
+const DB = t.koffi.opaque('DB')
+const DBPtr = t.koffi.pointer(DB)
+
+await using lib = await dlopen('./db.dylib', {
+  db_open:  { args: [t.cstring], returns: DBPtr },
+  db_exec:  { args: [DBPtr, t.cstring], returns: t.i32 },
+  db_close: { args: [DBPtr], returns: t.void },
+})
+
+const db = lib.symbols.db_open('./data.db')
+lib.symbols.db_exec(db, 'SELECT 1')
+lib.symbols.db_close(db)
+```
+
+## Reading memory manually
+
+When you need to decode a struct returned as a raw pointer:
+
+```ts
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+const ptr = lib.symbols.get_point_ptr()
+const point = t.koffi.decode(ptr, Point)
+// { x: ..., y: ... }
+```

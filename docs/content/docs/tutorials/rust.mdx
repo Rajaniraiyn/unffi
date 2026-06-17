@@ -1,0 +1,126 @@
+---
+title: Calling a Rust library
+description: Build a Rust crate as a cdylib and call it from JavaScript with unffi.
+---
+
+Rust can expose a C ABI using `extern "C"` and `#[no_mangle]`. unffi calls it the same as any other native library.
+
+## Write the library
+
+```toml title="Cargo.toml"
+[lib]
+crate-type = ["cdylib"]
+```
+
+```rust title="src/lib.rs"
+#[unsafe(no_mangle)]
+pub extern "C" fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn factorial(n: u64) -> u64 {
+    (1..=n).product()
+}
+```
+
+```sh
+cargo build --release
+# output: target/release/libmath.dylib (macOS) or libmath.so (Linux)
+```
+
+## Call it
+
+```ts
+import { dlopen, t } from 'unffi'
+
+await using lib = await dlopen('./target/release/libmath', {
+  add:       { args: [t.i32, t.i32], returns: t.i32 },
+  factorial: { args: [t.u64],        returns: t.u64 },
+})
+
+lib.symbols.add(3, 4)          // 7
+lib.symbols.factorial(10n)     // 3628800n
+```
+
+## Strings
+
+Returning a `String` from Rust across FFI requires care — the caller owns the memory. A common pattern is to write into a caller-provided buffer:
+
+```rust title="src/lib.rs"
+use std::ffi::{CStr, CString};
+use std::os::raw::c_char;
+
+#[unsafe(no_mangle)]
+pub extern "C" fn greet(name: *const c_char, out: *mut c_char, out_len: i32) {
+    let name = unsafe { CStr::from_ptr(name) }.to_string_lossy();
+    let result = CString::new(format!("hello, {name}")).unwrap();
+    let bytes = result.as_bytes_with_nul();
+    let n = bytes.len().min(out_len as usize);
+    unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), out as *mut u8, n) };
+}
+```
+
+```ts
+import { dlopen, t } from 'unffi'
+
+await using lib = await dlopen('./target/release/libgreet', {
+  greet: { args: [t.cstring, t.buffer, t.i32], returns: t.void },
+})
+
+const out = new Uint8Array(128)
+lib.symbols.greet('world', out, out.byteLength)
+
+const str = new TextDecoder().decode(out.subarray(0, out.indexOf(0)))
+// "hello, world"
+```
+
+## Structs
+
+```rust title="src/lib.rs"
+#[repr(C)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn distance(p: Point) -> f64 {
+    (p.x * p.x + p.y * p.y).sqrt()
+}
+```
+
+<Tabs items={['Bun / Deno', 'Node']}>
+
+<Tab value="Bun / Deno">
+
+On Bun/Deno, pass structs as a `Uint8Array` matching the layout:
+
+```ts
+const buf = new Uint8Array(16)
+const view = new DataView(buf.buffer)
+view.setFloat64(0, 3.0, true)
+view.setFloat64(8, 4.0, true)
+
+lib.symbols.distance(buf)  // 5.0 (Deno: use t.deno.struct)
+```
+
+</Tab>
+
+<Tab value="Node">
+
+```ts
+import { dlopen, t } from 'unffi'
+
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+await using lib = await dlopen('./target/release/libgeom', {
+  distance: { args: [Point], returns: t.f64 },
+})
+
+lib.symbols.distance({ x: 3.0, y: 4.0 })  // 5.0
+```
+
+</Tab>
+
+</Tabs>

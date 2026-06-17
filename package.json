@@ -2,6 +2,7 @@
   "name": "unffi",
   "version": "0.1.0",
   "description": "Universal FFI for Bun, Deno, and Node.js — one schema, runtime-native performance",
+  "workspaces": ["docs"],
   "type": "module",
   "exports": {
     ".": {

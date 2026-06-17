@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: ${{ matrix.runtime }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runtime: bun, os: ubuntu-latest }
+          - { runtime: deno, os: ubuntu-latest }
+          - { runtime: node, os: ubuntu-latest }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - if: matrix.runtime == 'bun'
+        uses: oven-sh/setup-bun@v2
+
+      - if: matrix.runtime == 'deno'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - if: matrix.runtime == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # node job also needs bun for bun install / bun run build (tsgo via @typescript/native-preview)
+      - if: matrix.runtime == 'node'
+        uses: oven-sh/setup-bun@v2
+
+      # --- bun ---
+      - if: matrix.runtime == 'bun'
+        run: bun install
+
+      - if: matrix.runtime == 'bun'
+        run: bun run build
+
+      - if: matrix.runtime == 'bun'
+        run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
+
+      - if: matrix.runtime == 'bun'
+        run: bun test tests/ffi.test.ts
+
+      # --- deno ---
+      # Full Deno runtime tests need a Deno-specific test harness (ffi.test.ts uses bun:test).
+      - if: matrix.runtime == 'deno'
+        run: deno check src/adapters/deno.ts
+
+      # --- node ---
+      # Full Node runtime tests need a Node test harness (ffi.test.ts uses bun:test).
+      - if: matrix.runtime == 'node'
+        run: bun install
+
+      - if: matrix.runtime == 'node'
+        run: bun run build

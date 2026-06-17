@@ -1,0 +1,77 @@
+---
+title: Async & nonblocking calls
+description: "Run slow native calls off the JS thread with async: true."
+---
+
+Mark a symbol `async: true` in the schema to run it on a thread pool. The bound function returns a `Promise` instead of a synchronous value.
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  compress:   { args: [t.buffer, t.i32], returns: t.i32, async: true },
+  decompress: { args: [t.buffer, t.i32, t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const result = lib.symbols.compress(new Uint8Array(0), 0)
+//    ^?
+```
+
+TypeScript infers `Promise<number>` from `async: true` and `returns: t.i32` — no annotations.
+
+## When to use it
+
+Async calls add overhead (thread pool dispatch, Promise allocation). Use when:
+
+- The native call blocks for >1ms (compression, hashing, image processing)
+- You want to keep the event loop responsive during CPU-intensive work
+- You're processing many items and want concurrent throughput via `Promise.all`
+
+For fast operations (integer math, simple lookups), synchronous calls are cheaper.
+
+## Concurrent throughput
+
+```ts
+const inputs: Uint8Array[] = /* ... */
+
+const results = await Promise.all(
+  inputs.map((buf) => lib.symbols.compress(buf, buf.byteLength))
+)
+```
+
+The native calls run concurrently on the thread pool. JS awaits all of them.
+
+## Per-runtime behaviour
+
+<Tabs items={['Bun', 'Deno', 'Node (koffi)']}>
+
+<Tab value="Bun">
+Uses `bun:ffi` `nonblocking: true`. Runs on Bun's libuv thread pool.
+</Tab>
+
+<Tab value="Deno">
+Uses `Deno.dlopen` `nonblocking: true`. Dispatches via Deno's async op system.
+</Tab>
+
+<Tab value="Node (koffi)">
+Uses koffi's async worker pool (`fn.async(..., callback)`). Wrapped in a `Promise` by unffi.
+</Tab>
+
+</Tabs>
+
+## Zero-copy with async
+
+`t.buffer` passes the backing pointer directly — no copy on input. Async calls work the same way:
+
+```ts
+const input = new Uint8Array(largeData)
+const output = new Uint8Array(maxOutputSize)
+
+// Neither buffer is copied — C reads input and writes output directly
+const written = await lib.symbols.compress(input, input.byteLength)
+// output[0..written] contains the compressed bytes
+```
+
+<Callout type="warn">
+Don't mutate or GC a `t.buffer` argument while an async call is in flight. The native thread holds a raw pointer to the backing memory.
+</Callout>

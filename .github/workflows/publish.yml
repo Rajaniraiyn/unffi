@@ -1,0 +1,39 @@
+name: Publish
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      # registry-url causes setup-node to write an .npmrc with NODE_AUTH_TOKEN placeholder.
+      # For OIDC without a stored token, use npm granular access tokens or the npm-publish action.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: bun install
+
+      - run: bun run build
+
+      # bun pack resolves workspace deps and peer deps cleanly, producing a .tgz.
+      - name: Pack with bun
+        run: bun pm pack --dry-run || bun pack
+
+      - name: Publish to npm (OIDC provenance)
+        run: |
+          TARBALL=$(ls *.tgz | head -1)
+          npm publish "$TARBALL" --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

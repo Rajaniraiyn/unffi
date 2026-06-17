@@ -1,0 +1,98 @@
+---
+title: Calling a Go library
+description: Export Go functions with CGo and call them from JavaScript with unffi.
+---
+
+Go can export functions with a C ABI using `//export` directives and CGo. Build as a `c-shared` plugin.
+
+## Write the library
+
+```go title="math.go"
+package main
+
+import "C"
+
+//export Add
+func Add(a, b int32) int32 {
+	return a + b
+}
+
+//export Greet
+func Greet(name *C.char) *C.char {
+	return C.CString("hello, " + C.GoString(name))
+}
+
+func main() {}
+```
+
+```sh
+go build -buildmode=c-shared -o libmath.dylib math.go   # macOS
+go build -buildmode=c-shared -o libmath.so   math.go   # Linux
+```
+
+This produces `libmath.dylib` (or `.so`) alongside a `libmath.h` header.
+
+## Call it
+
+```ts
+import { dlopen, t } from 'unffi'
+
+await using lib = await dlopen('./libmath', {
+  Add: { args: [t.i32, t.i32], returns: t.i32 },
+})
+
+lib.symbols.Add(3, 4) // 7
+```
+
+<Callout type="warn">
+The `Greet` function above returns a `*C.char` allocated by Go's runtime. You must call `C.free` on it after use to avoid a memory leak. For simpler string passing, use a caller-provided buffer instead.
+</Callout>
+
+## Safer string pattern
+
+Write into a caller-provided buffer to avoid allocation ownership issues:
+
+```go title="greet.go"
+package main
+
+import "C"
+import "unsafe"
+
+//export Greet
+func Greet(name *C.char, out *C.char, outLen C.int) {
+	result := "hello, " + C.GoString(name)
+	buf := unsafe.Slice((*byte)(unsafe.Pointer(out)), int(outLen))
+	n := copy(buf, result)
+	if n < len(buf) {
+		buf[n] = 0
+	}
+}
+
+func main() {}
+```
+
+```ts
+import { dlopen, t } from 'unffi'
+
+await using lib = await dlopen('./libgreet', {
+  Greet: { args: [t.cstring, t.buffer, t.i32], returns: t.void },
+})
+
+const out = new Uint8Array(256)
+lib.symbols.Greet('world', out, out.byteLength)
+
+const str = new TextDecoder().decode(out.subarray(0, out.indexOf(0)))
+// "hello, world"
+```
+
+## Async calls
+
+Go functions can be slow (GC pauses, goroutine scheduling). Mark them `async: true` to run off the JS thread:
+
+```ts
+await using lib = await dlopen('./libprocessor', {
+  Process: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const result = await lib.symbols.Process(inputBuf, inputBuf.byteLength)
+```

@@ -1,0 +1,184 @@
+---
+title: Getting started
+description: Call any native library with a C ABI from JavaScript in a few lines.
+---
+
+unffi works with any shared library that exports a C ABI — C, Rust, Go, Zig, C++, and more. One schema, one import, runs on Bun, Deno, and Node.
+
+<Steps>
+
+<Step>
+
+### Install
+
+<Tabs items={['bun', 'pnpm', 'npm', 'yarn']}>
+
+<Tab value="bun">
+```sh
+bun add unffi
+```
+</Tab>
+
+<Tab value="pnpm">
+```sh
+pnpm add unffi
+```
+</Tab>
+
+<Tab value="npm">
+```sh
+npm install unffi
+```
+</Tab>
+
+<Tab value="yarn">
+```sh
+yarn add unffi
+```
+</Tab>
+
+</Tabs>
+
+On Node.js, also install `koffi`:
+
+```sh
+npm install koffi
+```
+
+Bun and Deno ship FFI natively.
+
+</Step>
+
+<Step>
+
+### Build a shared library
+
+You need a `.dylib` (macOS), `.so` (Linux), or `.dll` (Windows). Any language that exports a C ABI works.
+
+```c title="math.c"
+int add(int a, int b) { return a + b; }
+const char* greet(const char* name);
+```
+
+```sh
+clang -shared -fPIC -o math.dylib math.c   # macOS
+clang -shared -fPIC -o math.so   math.c    # Linux
+```
+
+See [Tutorials](/docs/tutorials/rust) for Rust and Go examples.
+
+</Step>
+
+<Step>
+
+### Open it
+
+Hover any identifier to see what TypeScript inferred from the schema — no annotations, no codegen.
+
+```ts twoslash title="main.ts"
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./math.dylib', {
+  add:   { args: [t.i32, t.i32], returns: t.i32 },
+  greet: { args: [t.cstring],    returns: t.cstring },
+})
+
+const sum = lib.symbols.add(2, 3)
+//    ^?
+
+const hello = lib.symbols.greet('world')
+//    ^?
+```
+
+`lib.symbols` is fully typed from your schema — argument and return types are inferred, no casts needed.
+
+</Step>
+
+</Steps>
+
+## Lifecycle
+
+`dlopen` returns an [`AsyncDisposable`](https://github.com/tc39/proposal-explicit-resource-management). The `await using` statement closes the handle when the block exits, even on throw.
+
+```ts
+{
+  await using lib = await dlopen('./math.dylib', {
+    add: { args: [t.i32, t.i32], returns: t.i32 },
+  })
+  lib.symbols.add(1, 2)
+} // ← lib.close() here
+```
+
+Manual lifecycle:
+
+```ts
+const lib = await dlopen('./math.dylib', {
+  add: { args: [t.i32, t.i32], returns: t.i32 },
+})
+try {
+  lib.symbols.add(1, 2)
+} finally {
+  await lib[Symbol.asyncDispose]()
+}
+```
+
+`close()`, `[Symbol.dispose]()`, and `[Symbol.asyncDispose]()` are all available and idempotent.
+
+## Passing callbacks
+
+Put `t.fn([...argTypes], returnType)` in the schema where a function pointer argument is expected. Pass a plain JS function at the call site — unffi wraps it automatically.
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./sorter.dylib', {
+  sort: {
+    args: [t.buffer, t.i32, t.fn([t.i64, t.i64], t.i32)],
+    returns: t.void,
+  },
+})
+
+const items = new BigInt64Array([3n, 1n, 4n, 1n, 5n, 9n])
+lib.symbols.sort(items, items.length, (a, b) => {
+  //                                   ^?
+  return a < b ? -1 : a > b ? 1 : 0
+})
+```
+
+The comparator's `a` and `b` are typed as `bigint` because they correspond to `t.i64` — JS matches C exactly, end to end.
+
+<Callout type="warn">
+The callback must stay alive for as long as native code might invoke it. Closing the library while a callback is in use is undefined behaviour.
+</Callout>
+
+## Async / nonblocking calls
+
+Mark a symbol `async: true` to run it off the JS thread. The bound function returns a `Promise`.
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  compress: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const inputBuf = new Uint8Array(1024)
+const outLen = await lib.symbols.compress(inputBuf, inputBuf.byteLength)
+//    ^?
+```
+
+## Zero-copy buffers
+
+Use `t.buffer` for `TypedArray` arguments — unffi passes the backing memory pointer directly, no copy.
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./fill.dylib', {
+  fill: { args: [t.buffer, t.i32], returns: t.void },
+})
+
+const buf = new Uint8Array(1024)
+lib.symbols.fill(buf, buf.byteLength)
+// buf is mutated in-place by native code
+```

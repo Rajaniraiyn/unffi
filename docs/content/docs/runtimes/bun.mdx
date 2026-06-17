@@ -1,0 +1,112 @@
+---
+title: Bun
+description: Using unffi on Bun — bun:ffi, fast 64-bit ints, NAPI interop, zero-copy.
+---
+
+unffi on Bun uses `bun:ffi` directly. Symbols are JIT-compiled to native trampolines — no JS wrapper overhead per call.
+
+## Quick start
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./libmath.dylib', {
+  add:  { args: [t.i32, t.i32], returns: t.i32 },
+  sqrt: { args: [t.f64],        returns: t.f64 },
+})
+
+const sum  = lib.symbols.add(3, 4)
+//    ^?
+const root = lib.symbols.sqrt(2.0)
+//    ^?
+```
+
+## Fast 64-bit integers
+
+`t.i64` and `t.u64` always return `bigint`. If you know the value fits in a JS number (≤ 2^53), use the fast variant to skip BigInt allocation:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./counter.dylib', {
+  count: { args: [], returns: t.i64 },
+})
+
+const precise = lib.symbols.count()
+//    ^?
+```
+
+On Bun, you can also use `t.bun.i64_fast` instead of `t.i64` — it returns `number | bigint`, skipping BigInt allocation when the value fits in a double.
+
+`t.i64` always gives `bigint`. `t.bun.i64_fast` gives `number | bigint` — skips BigInt allocation when the value fits.
+
+<Callout type="warn">
+`i64_fast` silently loses precision above 2^53. Only use it when values are bounded.
+</Callout>
+
+## Zero-copy buffers
+
+Use `t.buffer` for `TypedArray` arguments — unffi passes the backing pointer directly:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./fill.dylib', {
+  fill: { args: [t.buffer, t.i32], returns: t.void },
+})
+
+const buf = new Uint8Array(1024)
+const result = lib.symbols.fill(buf, buf.byteLength)
+//    ^?
+// buf is populated in-place
+```
+
+## Callbacks
+
+Pass a JS function directly where `t.fn` is in the schema:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./sorter.dylib', {
+  sort: {
+    args: [t.buffer, t.i32, t.fn([t.i32, t.i32], t.i32)],
+    returns: t.void,
+  },
+})
+
+lib.symbols.sort(new Int32Array(10), 10, (a, b) => {
+  //                                      ^?
+  return a - b
+})
+```
+
+The callback's `a` and `b` are typed as `number` from `t.i32`.
+
+## Async / nonblocking calls
+
+Mark slow symbols `async: true` to run them on a thread pool:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  encode: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const outLen = await lib.symbols.encode(new Uint8Array(1024), 1024)
+//    ^?
+```
+
+## NAPI interop
+
+For native addons that expose a Node-API interface, use `t.bun.napi_env` and `t.bun.napi_value`:
+
+```ts
+await using addon = await dlopen('./addon.node', {
+  napi_register_module_v1: {
+    args: [t.bun.napi_env, t.bun.napi_value],
+    returns: t.bun.napi_value,
+  },
+})
+```

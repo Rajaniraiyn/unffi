@@ -1,0 +1,127 @@
+---
+title: Deno
+description: Using unffi on Deno — permissions, pointer helpers, structs by value, async calls.
+---
+
+unffi on Deno wraps `Deno.dlopen`. Scalar calls use V8's fast API path and compile to near-native after warmup.
+
+## Permissions
+
+Deno gates FFI access. Pass `--allow-ffi` (or a path to scope it):
+
+```sh
+deno run --allow-ffi main.ts
+deno run --allow-ffi=./libmath.dylib main.ts
+```
+
+Without it, `dlopen` throws a descriptive error with a link to the Deno FFI docs.
+
+## Quick start
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./libmath.dylib', {
+  add:  { args: [t.i32, t.i32], returns: t.i32 },
+  sqrt: { args: [t.f64],        returns: t.f64 },
+})
+
+const sum  = lib.symbols.add(3, 4)
+//    ^?
+const root = lib.symbols.sqrt(2.0)
+//    ^?
+```
+
+## Pointer-sized integers
+
+Use `t.deno.usize` / `t.deno.isize` for `size_t` / `ssize_t`. They always return `bigint`:
+
+```ts
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./alloc.dylib', {
+  malloc: { args: [t.deno.usize], returns: t.pointer },
+})
+
+const ptr = lib.symbols.malloc(256n)  // bigint | null
+```
+
+## Zero-copy buffers
+
+Pass a `TypedArray` where `t.buffer` is expected:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./fill.dylib', {
+  fill: { args: [t.buffer, t.i32], returns: t.void },
+})
+
+const buf = new Uint8Array(1024)
+lib.symbols.fill(buf, buf.byteLength)
+// buf is populated in-place — no copy
+```
+
+For an offset pointer or long-lived pointer:
+
+```ts
+const p = t.deno.ptrOf(buf)              // Deno.PointerValue from TypedArray
+t.deno.readCString(p)                    // decode NUL-terminated string
+t.deno.readArrayBuffer(p, byteLen)       // read raw bytes
+```
+
+## Structs by value
+
+`t.deno.struct(fields)` takes an array of `CType` tokens and creates a by-value struct type. Pass/receive as a `Uint8Array` matching the struct's byte layout:
+
+```ts
+import { dlopen, t } from 'unffi'
+
+// struct Point { float x; float y; }  →  8 bytes
+const Point = t.deno.struct([t.f32, t.f32])
+
+const lib = await dlopen('./geom.dylib', {
+  length: { args: [Point], returns: t.f32 },
+})
+
+const point = new Uint8Array(8)
+new DataView(point.buffer).setFloat32(0, 3.0, true)
+new DataView(point.buffer).setFloat32(4, 4.0, true)
+
+lib.symbols.length(point)  // → 5.0
+```
+
+## Async / nonblocking calls
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  encode: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const outLen = await lib.symbols.encode(new Uint8Array(1024), 1024)
+//    ^?
+```
+
+## Callbacks
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./sorter.dylib', {
+  sort: {
+    args: [t.buffer, t.i32, t.fn([t.i32, t.i32], t.i32)],
+    returns: t.void,
+  },
+})
+
+lib.symbols.sort(new Int32Array(10), 10, (a, b) => {
+  //                                      ^?
+  return a - b
+})
+```
+
+<Callout>
+Deno callbacks must be invoked from the main thread. Cross-thread invocations require a native queue.
+</Callout>

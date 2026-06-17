@@ -1,0 +1,104 @@
+---
+title: Working with callbacks
+description: Pass JavaScript functions as native function pointers using t.fn.
+---
+
+`t.fn(argTypes, returnType)` describes a C function pointer type. At the call site, pass a plain JS function — unffi creates the native trampoline automatically.
+
+## Basic callback
+
+```c title="events.c"
+typedef void (*EventHandler)(int event_id);
+
+void on_event(EventHandler handler) {
+    handler(42);
+}
+```
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./events.dylib', {
+  on_event: { args: [t.fn([t.i32], t.void)], returns: t.void },
+})
+
+lib.symbols.on_event((eventId) => {
+  //                  ^?
+  console.log('event:', eventId) // event: 42
+})
+```
+
+The `eventId` parameter is inferred as `number` from `t.i32` in the callback signature.
+
+## Sorting with a comparator
+
+```ts
+const lib = await dlopen('./libc.dylib', {
+  qsort: {
+    args: [t.buffer, t.i32, t.i32, t.fn([t.pointer, t.pointer], t.i32)],
+    returns: t.void,
+  },
+})
+
+const arr = new Int32Array([5, 3, 1, 4, 2])
+lib.symbols.qsort(arr, arr.length, 4, (a, b) => {
+  // a, b are bigint pointers into the array
+  // read values via DataView if you need them
+  return 0 // stable sort
+})
+```
+
+## Callbacks with string arguments
+
+`t.cstring` in a callback's arg types is decoded to a JS string automatically:
+
+```c title="logger.c"
+typedef void (*LogFn)(const char* message);
+void set_logger(LogFn fn);
+```
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./logger.dylib', {
+  set_logger: {
+    args: [t.fn([t.cstring], t.void)],
+    returns: t.void,
+  },
+})
+
+lib.symbols.set_logger((message) => {
+  //                    ^?
+  console.log('[native]', message)
+})
+```
+
+## Callback lifetime
+
+The callback trampoline is tied to the library. It stays alive until `lib.close()` is called.
+
+<Callout type="warn">
+If the native library may invoke a callback after the library is closed (e.g. a detached thread), you need to ensure `lib.close()` only happens after all callbacks have returned.
+</Callout>
+
+## Multiple callbacks
+
+Each call to a symbol that takes a `t.fn` argument creates a new trampoline. If the native side only uses the latest callback (e.g. `set_logger`), the older trampolines are still held alive until `lib.close()`.
+
+```ts
+// Each call registers a new handler. Both stay alive until lib.close().
+lib.symbols.set_logger((msg) => console.log('first:', msg))
+lib.symbols.set_logger((msg) => console.log('second:', msg))
+```
+
+## Returning values from callbacks
+
+The JS function's return type must match the callback signature:
+
+```ts
+const Comparator = t.fn([t.i32, t.i32], t.i32)
+
+lib.symbols.sort(buf, count, Comparator, (a, b) => {
+  return a - b  // must return number (i32)
+})
+```

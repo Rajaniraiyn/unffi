@@ -1,0 +1,178 @@
+---
+title: Schema & types
+description: How to describe native symbols and what TypeScript infers from your schema.
+---
+
+The schema you pass to `dlopen` is the source of truth. TypeScript infers every argument and return type at compile time — no codegen, no decorators, no type annotations to maintain.
+
+Hover the identifiers to see what TypeScript knows:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./math.dylib', {
+  add:   { args: [t.i32, t.i32], returns: t.i32 },
+  greet: { args: [t.cstring],    returns: t.cstring },
+})
+
+const sum = lib.symbols.add(2, 3)
+//    ^?
+
+const hello = lib.symbols.greet('world')
+//    ^?
+```
+
+`sum` is `number`, `hello` is `string`. TypeScript derives this from `t.i32` and `t.cstring` in the schema alone.
+
+## What types are
+
+Each `t.*` value is a `CType<T>` token — it carries the C type name and the JS type `T` as a phantom parameter. `dlopen` maps the whole schema through `InferLibrary<S>`:
+
+```ts twoslash
+import { t } from 'unffi'
+
+const i32 = t.i32
+//    ^?
+
+const cstr = t.cstring
+//    ^?
+
+const cb = t.fn([t.i32, t.i32], t.i32)
+//    ^?
+```
+
+## Primitives
+
+| Type | C type | TypeScript |
+|---|---|---|
+| `t.void` | `void` | `undefined` |
+| `t.bool` | `bool` | `boolean` |
+| `t.i8` | `int8_t` | `number` |
+| `t.u8` | `uint8_t` | `number` |
+| `t.i16` | `int16_t` | `number` |
+| `t.u16` | `uint16_t` | `number` |
+| `t.i32` | `int32_t` | `number` |
+| `t.u32` | `uint32_t` | `number` |
+| `t.i64` | `int64_t` | `bigint` |
+| `t.u64` | `uint64_t` | `bigint` |
+| `t.f32` | `float` | `number` |
+| `t.f64` | `double` | `number` |
+| `t.cstring` | `const char*` | `string` (UTF-8, NUL-terminated) |
+| `t.pointer` | `void*` | `bigint \| null` |
+| `t.buffer` | `void*` | `ArrayBufferView` (zero-copy) |
+
+**`t.cstring`** — decoded to a JS `string` on output. On input, unffi encodes the string to a temporary NUL-terminated buffer for the call's duration.
+
+**`t.pointer`** — raw address as `bigint`, or `null` for a null pointer.
+
+**`t.buffer`** — pass any `TypedArray` or `DataView`; unffi hands C the backing pointer directly, no copy.
+
+## Symbol definition
+
+Each key in the schema is a `SymbolDef`:
+
+```ts twoslash
+import type { SymbolDef } from 'unffi'
+
+type Sym = SymbolDef
+//   ^?
+```
+
+`async: true` makes the bound function return a `Promise`. Supported on all backends (Bun thread pool, Deno nonblocking, koffi worker pool).
+
+## Function pointers — `t.fn`
+
+`t.fn(argTypes, returnType)` describes a C function pointer. Pass a plain JS function at the call site — unffi wraps it automatically.
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./sort.dylib', {
+  sort: {
+    args: [t.buffer, t.i32, t.fn([t.i64, t.i64], t.i32)],
+    returns: t.void,
+  },
+})
+
+lib.symbols.sort(new BigInt64Array(4), 4, (a, b) => {
+  //                                       ^?
+  return a < b ? -1 : a > b ? 1 : 0
+})
+```
+
+The comparator's `a` and `b` are typed as `bigint` because they correspond to `t.i64` — JS matches C exactly.
+
+## Async symbols
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  compress: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+  fast:     { args: [t.i32, t.i32],    returns: t.i32 },
+})
+
+const promise = lib.symbols.compress(new Uint8Array(0), 0)
+//    ^?
+
+const value = lib.symbols.fast(1, 2)
+//    ^?
+```
+
+`compress` is async (thread-pool call). `fast` is synchronous.
+
+## Runtime-specific types
+
+<Tabs items={['Bun', 'Deno', 'Node (koffi)']}>
+
+<Tab value="Bun">
+
+| Type | TypeScript | Notes |
+|---|---|---|
+| `t.bun.i64_fast` | `number \| bigint` | Skip BigInt alloc when value ≤ 2^53. Loses precision above it. |
+| `t.bun.u64_fast` | `number \| bigint` | Same, unsigned. |
+| `t.bun.napi_env` | opaque | Node-API environment pointer. |
+| `t.bun.napi_value` | opaque | Node-API value pointer. |
+
+</Tab>
+
+<Tab value="Deno">
+
+| Type | TypeScript | Notes |
+|---|---|---|
+| `t.deno.usize` | `bigint` | `size_t` — pointer-sized unsigned. |
+| `t.deno.isize` | `bigint` | `ssize_t` — pointer-sized signed. |
+| `t.deno.struct(fields)` | `Uint8Array` | Struct by value. Pass `CType[]` tokens. |
+
+Helpers:
+
+```ts
+t.deno.ptrOf(view)                         // zero-copy pointer from TypedArray
+t.deno.readCString(ptr, offset?)           // decode NUL-terminated string
+t.deno.readArrayBuffer(ptr, len, offset?)  // read raw bytes
+```
+
+</Tab>
+
+<Tab value="Node (koffi)">
+
+| Type | TypeScript | Notes |
+|---|---|---|
+| `t.koffi.struct(def)` / `(name, def)` | object | C struct. |
+| `t.koffi.array(ref, len)` | array | Fixed-length array. |
+| `t.koffi.pointer(ref)` | pointer | Typed pointer. |
+| `t.koffi.out(ref)` | `[T]` | Output param — writes to index 0. Pointer wrapping is internal. |
+| `t.koffi.inout(ref)` | `[T]` | Read/write param. |
+| `t.koffi.opaque(name?)` | opaque | Foreign handle. |
+| `t.koffi.str16` | `string` | UTF-16 wide string (Windows APIs). |
+| `t.koffi.uintptr` / `intptr` | `bigint` | Pointer-sized integers. |
+
+Utilities: `t.koffi.encode`, `t.koffi.decode`, `t.koffi.free`, `t.koffi.alias`, `t.koffi.raw`.
+
+</Tab>
+
+</Tabs>
+
+<Callout>
+Using a runtime-specific type on the wrong runtime throws at `dlopen` time with a clear message pointing to the right namespace.
+</Callout>

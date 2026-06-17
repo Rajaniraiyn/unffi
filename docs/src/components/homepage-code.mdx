@@ -1,0 +1,14 @@
+```ts twoslash title="example.ts"
+import { dlopen, t } from 'unffi'
+
+await using lib = await dlopen('./libmath', {
+  add:   { args: [t.i32, t.i32], returns: t.i32 },
+  greet: { args: [t.cstring],    returns: t.cstring },
+})
+
+const sum = lib.symbols.add(2, 3)
+//    ^?
+
+const hello = lib.symbols.greet('world')
+//    ^?
+```
