@@ -36,7 +36,11 @@ jobs:
       # snapshotted the source dir before dist/ existed.
       - run: bun install
 
+      # NODE_ENV=production tells vite to use the /unffi/ base path so assets
+      # resolve correctly under https://<user>.github.io/unffi/.
       - run: bun run --cwd docs build
+        env:
+          NODE_ENV: production
 
       - uses: actions/configure-pages@v5
 

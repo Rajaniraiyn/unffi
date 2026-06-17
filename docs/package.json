@@ -5,7 +5,8 @@
   "sideEffects": false,
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build",
+    "build": "vite build && bun run postbuild",
+    "postbuild": "node -e \"const fs=require('node:fs'),p=require('node:path');const d=p.resolve('.output/public');const s=p.join(d,'_shell.html');if(fs.existsSync(s)){const i=p.join(d,'index.html');if(!fs.existsSync(i))fs.copyFileSync(s,i);const n=p.join(d,'404.html');if(!fs.existsSync(n))fs.copyFileSync(s,n);}fs.writeFileSync(p.join(d,'.nojekyll'),'');\"",
     "start": "serve .output/public --config ../../serve.json",
     "preview": "vite preview",
     "types:check": "fumadocs-mdx && tsc --noEmit",
