@@ -5,14 +5,23 @@
   "type": "module",
   "exports": {
     ".": {
-      "bun":  { "types": "./dist/adapters/bun.d.ts",  "default": "./dist/adapters/bun.js"  },
-      "deno": { "types": "./dist/adapters/deno.d.ts", "default": "./dist/adapters/deno.js" },
-      "node": { "types": "./dist/adapters/node.d.ts", "default": "./dist/adapters/node.js" },
-      "types":   "./dist/index.d.ts",
+      "bun": {
+        "types": "./dist/adapters/bun.d.ts",
+        "default": "./dist/adapters/bun.js"
+      },
+      "deno": {
+        "types": "./dist/adapters/deno.d.ts",
+        "default": "./dist/adapters/deno.js"
+      },
+      "node": {
+        "types": "./dist/adapters/node.d.ts",
+        "default": "./dist/adapters/node.js"
+      },
+      "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
     "./types": {
-      "types":   "./dist/types.d.ts",
+      "types": "./dist/types.d.ts",
       "default": "./dist/types.js"
     }
   },
@@ -22,6 +31,10 @@
     "build:clean": "tsgo -b --clean tsconfig.json && tsgo -b tsconfig.json",
     "typecheck": "tsgo -b tsconfig.json --dry",
     "dev": "tsgo -b --watch tsconfig.json",
+    "test": "bun test tests/bun",
+    "test:shared": "vitest run tests/shared",
+    "test:node": "UNFFI_RUNTIME=node vitest run tests/node",
+    "test:watch": "bun test --watch tests/bun",
     "typecheck:tests": "tsgo --project tsconfig.test.json"
   },
   "optionalDependencies": {
@@ -31,7 +44,8 @@
     "@types/bun": "^1.3.14",
     "@types/deno": "^2.7.0",
     "@types/node": "latest",
-    "@typescript/native-preview": "latest"
+    "@typescript/native-preview": "latest",
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "typescript": ">=5.0.0"

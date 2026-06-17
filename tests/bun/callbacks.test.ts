@@ -11,7 +11,6 @@
  *   int32_t count_matching(int32_t *arr, int32_t len, bool (*pred)(int32_t), int32_t *out)
  */
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
-import { CString } from 'bun:ffi'
 import { dlopen, t } from '../../src/adapters/bun.js'
 import { compileC, fixturePath, tmpLib } from '../helpers/compile.js'
 
@@ -180,25 +179,14 @@ describe('call_with_message — string callback', () => {
   test('callback receives the string argument', () => {
     let received: string | null = null
     // cstring INPUT to Bun FFI must be a null-terminated Buffer
-    // Bun passes cstring callback args as raw pointer numbers — decode with CString.
-    // cstring INPUT to C must be a null-terminated Buffer.
-    lib.symbols.call_with_message(
-      (ptr: string) => { received = new CString(ptr as unknown as number).toString() },
-      Buffer.from('hello unffi\0'),
-    )
+    lib.symbols.call_with_message((msg: string) => { received = msg }, 'hello unffi')
     expect(received).toBe('hello unffi')
   })
 
   test('callback accumulates values across calls', () => {
     const collected: string[] = []
-    lib.symbols.call_with_message(
-      (ptr: string) => collected.push(new CString(ptr as unknown as number).toString()),
-      Buffer.from('first\0'),
-    )
-    lib.symbols.call_with_message(
-      (ptr: string) => collected.push(new CString(ptr as unknown as number).toString()),
-      Buffer.from('second\0'),
-    )
+    lib.symbols.call_with_message((msg: string) => collected.push(msg), 'first')
+    lib.symbols.call_with_message((msg: string) => collected.push(msg), 'second')
     expect(collected).toEqual(['first', 'second'])
   })
 })

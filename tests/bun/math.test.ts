@@ -336,23 +336,22 @@ describe('f64', () => {
 
 // ─── cstring ──────────────────────────────────────────────────────────────────
 
-// Bun FFI requires a null-terminated Buffer for cstring INPUT args.
-// cstring OUTPUT (return value) is automatically decoded to a JS string.
-// Bun FFI requires a null-terminated Buffer for cstring INPUT args.
-// cstring OUTPUT returns Bun's CString (extends String) — use .toString() for primitives.
+// The Bun adapter handles cstring encoding/decoding transparently:
+//   INPUT  string → null-terminated Buffer (no user action needed)
+//   OUTPUT CString → plain string          (no user action needed)
 describe('cstring', () => {
   test('greet("World") returns "Hello, World"', () => {
-    expect(lib.symbols.greet(Buffer.from('World\0')).toString()).toBe('Hello, World')
+    expect(lib.symbols.greet('World')).toBe('Hello, World')
   })
 
   test('greet("Bun") returns "Hello, Bun"', () => {
-    expect(lib.symbols.greet(Buffer.from('Bun\0')).toString()).toBe('Hello, Bun')
+    expect(lib.symbols.greet('Bun')).toBe('Hello, Bun')
   })
 
-  test('greet returns a string-like value', () => {
-    const result = lib.symbols.greet(Buffer.from('test\0'))
-    // CString extends String — coerce to primitive for comparison
-    expect(result.toString()).toContain('test')
+  test('greet returns a plain string', () => {
+    const result = lib.symbols.greet('test')
+    expect(typeof result).toBe('string')
+    expect(result).toContain('test')
   })
 })
 
