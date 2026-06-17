@@ -1,9 +1,21 @@
 import koffi, { type IKoffiLib } from 'koffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
-import type { CCallback, CType, CTypeKind } from '../types.js'
+import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
+
+// ─── KoffiT — extends CoreT with koffi-specific FFI types ────────────────────
+export interface KoffiT extends CoreT {
+  readonly koffi: {
+    /** UTF-16 string — for Windows APIs that use wide strings (koffi `str16`) */
+    readonly str16:   CType<string>
+    /** Pointer-sized unsigned integer, returns `bigint` (koffi `uintptr_t`) */
+    readonly uintptr: CType<bigint>
+    /** Pointer-sized signed integer, returns `bigint` (koffi `intptr_t`) */
+    readonly intptr:  CType<bigint>
+  }
+}
 
 // Derive koffi's non-exported TypeSpec from IKoffiLib.symbol (exported interface).
 // TypeSpec = string | IKoffiCType — covers plain strings AND koffi composite types.
@@ -54,7 +66,7 @@ const koffiExtensions = {
   intptr:  { kind: 'koffi:intptr'  } as unknown as CType<bigint>,
 }
 
-export const t = Object.assign({}, coreT, { koffi: koffiExtensions })
+export const t: KoffiT = Object.assign({}, coreT, { koffi: koffiExtensions });
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 

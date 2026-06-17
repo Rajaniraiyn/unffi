@@ -1,8 +1,18 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
-import type { CCallback, CType, CTypeKind } from '../types.js'
+import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
+
+// ─── DenoT — extends CoreT with Deno-specific FFI types ──────────────────────
+export interface DenoT extends CoreT {
+  readonly deno: {
+    /** Pointer-sized unsigned integer (64-bit on 64-bit systems) → `bigint` */
+    readonly usize: CType<bigint>
+    /** Pointer-sized signed integer (64-bit on 64-bit systems) → `bigint` */
+    readonly isize: CType<bigint>
+  }
+}
 
 // ─── Core type map — uses Deno.NativeResultType directly, no manual redefinition
 const coreDenoTypes: Record<CTypeKind, Deno.NativeResultType> = {
@@ -46,7 +56,7 @@ const denoExtensions = {
   isize: { kind: 'deno:isize' } as unknown as CType<bigint>,
 }
 
-export const t = Object.assign({}, coreT, { deno: denoExtensions })
+export const t: DenoT = Object.assign({}, coreT, { deno: denoExtensions });
 
 // ─── dlopen ───────────────────────────────────────────────────────────────────
 

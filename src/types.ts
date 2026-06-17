@@ -41,8 +41,33 @@ export interface CCallback<
   readonly returnType: Ret
 }
 
-// The `t` namespace — C ABI type tokens
-export const t = {
+// ─── CoreT interface ──────────────────────────────────────────────────────────
+// Named interface for the base `t` object so adapters can extend it cleanly
+// and IDE hover shows a readable type instead of an opaque intersection.
+
+export interface CoreT {
+  readonly void:    CType<void>
+  readonly bool:    CType<boolean>
+  readonly i8:      CType<number>
+  readonly i16:     CType<number>
+  readonly i32:     CType<number>
+  readonly i64:     CType<bigint>
+  readonly u8:      CType<number>
+  readonly u16:     CType<number>
+  readonly u32:     CType<number>
+  readonly u64:     CType<bigint>
+  readonly f32:     CType<number>
+  readonly f64:     CType<number>
+  readonly cstring: CType<string>
+  readonly pointer: CType<Ptr | null>
+  readonly buffer:  CType<ArrayBufferView>
+  fn<const Args extends readonly CType<any>[], const Ret extends CType<any>>(
+    args: Args,
+    returns: Ret,
+  ): CCallback<Args, Ret>
+}
+
+export const t: CoreT = {
   void:    c<void>('void'),
   bool:    c<boolean>('bool'),
   i8:      c<number>('i8'),
@@ -58,8 +83,6 @@ export const t = {
   cstring: c<string>('cstring'),
   pointer: c<Ptr | null>('pointer'),
   buffer:  c<ArrayBufferView>('buffer'),
-
-  /** Define a C callback / function pointer */
   fn<const Args extends readonly CType<any>[], const Ret extends CType<any>>(
     args: Args,
     returns: Ret,

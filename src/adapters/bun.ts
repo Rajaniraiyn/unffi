@@ -1,9 +1,23 @@
 import { dlopen as bunDlopen, FFIType, JSCallback } from 'bun:ffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
-import type { CCallback, CType, CTypeKind } from '../types.js'
+import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
+
+// ─── BunT — extends CoreT with Bun-specific FFI types ─────────────────────────
+export interface BunT extends CoreT {
+  readonly bun: {
+    /** i64 that returns `number` when the value fits safely, `BigInt` otherwise */
+    readonly i64_fast:   CType<number | bigint>
+    /** u64 that returns `number` when the value fits safely, `BigInt` otherwise */
+    readonly u64_fast:   CType<number | bigint>
+    /** NAPI environment pointer (for NAPI-based native addons) */
+    readonly napi_env:   CType<unknown>
+    /** NAPI value (for NAPI-based native addons) */
+    readonly napi_value: CType<unknown>
+  }
+}
 
 // ─── Core type map (exhaustive over CTypeKind) ────────────────────────────────
 const coreFFITypes: Record<CTypeKind, FFIType> = {
@@ -59,7 +73,7 @@ const bunExtensions = {
   napi_value: { kind: 'bun:napi_value' } as unknown as CType<unknown>,
 }
 
-export const t = Object.assign({}, coreT, { bun: bunExtensions })
+export const t: BunT = Object.assign({}, coreT, { bun: bunExtensions });
 
 // ─── dlopen ───────────────────────────────────────────────────────────────────
 
