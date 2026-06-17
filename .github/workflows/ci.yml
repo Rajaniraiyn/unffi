@@ -21,8 +21,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - if: matrix.runtime == 'bun'
-        uses: oven-sh/setup-bun@v2
+      # Every runtime needs bun for install + build (tsgo via @typescript/native-preview).
+      - uses: oven-sh/setup-bun@v2
 
       - if: matrix.runtime == 'deno'
         uses: denoland/setup-deno@v2
@@ -34,17 +34,11 @@ jobs:
         with:
           node-version: '22'
 
-      # node job also needs bun for bun install / bun run build (tsgo via @typescript/native-preview)
-      - if: matrix.runtime == 'node'
-        uses: oven-sh/setup-bun@v2
+      - run: bun install
+
+      - run: bun run build
 
       # --- bun ---
-      - if: matrix.runtime == 'bun'
-        run: bun install
-
-      - if: matrix.runtime == 'bun'
-        run: bun run build
-
       - if: matrix.runtime == 'bun'
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
 
@@ -53,13 +47,10 @@ jobs:
 
       # --- deno ---
       # Full Deno runtime tests need a Deno-specific test harness (ffi.test.ts uses bun:test).
+      # Have Deno check the emitted output to verify it's consumable by Deno users.
       - if: matrix.runtime == 'deno'
-        run: deno check src/adapters/deno.ts
+        run: deno check dist/adapters/deno.js
 
       # --- node ---
       # Full Node runtime tests need a Node test harness (ffi.test.ts uses bun:test).
-      - if: matrix.runtime == 'node'
-        run: bun install
-
-      - if: matrix.runtime == 'node'
-        run: bun run build
+      # Build above already validates the Node target via tsconfig.node.json.

@@ -27,6 +27,10 @@ jobs:
       # Install from workspace root so docs/ workspace deps are resolved.
       - run: bun install
 
+      # Build root unffi package first — docs use twoslash code samples that
+      # `import from 'unffi'`, which needs dist/*.d.ts to exist.
+      - run: bun run build
+
       - run: bun run --cwd docs build
 
       - uses: actions/configure-pages@v5
