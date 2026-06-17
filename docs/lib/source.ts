@@ -20,10 +20,11 @@ export function getPageImage(page: (typeof source)['$inferPage']) {
 
 export function getPageMarkdownUrl(page: (typeof source)['$inferPage']) {
   const segments = [...page.slugs, 'content.md'];
+  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
   return {
     segments,
-    url: `${docsContentRoute}/${segments.join('/')}`,
+    url: `${basePath}${docsContentRoute}/${segments.join('/')}`,
   };
 }
 

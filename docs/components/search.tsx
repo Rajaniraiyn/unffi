@@ -29,6 +29,7 @@ export default function DefaultSearchDialog(props: SharedProps) {
     client: oramaStaticClient({
       initOrama,
       locale,
+      from: `${process.env.NEXT_PUBLIC_BASE_PATH ?? ''}/api/search`,
     }),
   });
 

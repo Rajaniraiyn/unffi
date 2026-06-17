@@ -15,6 +15,11 @@ const config = {
   images: {
     unoptimized: true,
   },
+  // Exposed to the browser so the static search client can fetch
+  // /api/search at the correct absolute URL under GitHub Pages.
+  env: {
+    NEXT_PUBLIC_BASE_PATH: basePath,
+  },
 };
 
 export default withMDX(config);
