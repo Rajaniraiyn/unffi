@@ -1,13 +1,16 @@
-import koffi from 'koffi'
+import koffi, { type IKoffiLib } from 'koffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind } from '../types.js'
 import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
 
+// Derive koffi's non-exported TypeSpec from IKoffiLib.symbol (which IS exported).
+// TypeSpec = string | IKoffiCType — covers plain strings AND koffi struct/pointer/array types.
+type KoffiTypeSpec = Parameters<IKoffiLib['symbol']>[1]
+
 // ─── Core type map (exhaustive over CTypeKind) ────────────────────────────────
-// ponytail: koffi uses string type names; i64/u64 return BigInt automatically
-const coreKoffiTypes: Record<CTypeKind, string> = {
+const coreKoffiTypes: Record<CTypeKind, KoffiTypeSpec> = {
   void:     'void',
   bool:     'bool',
   i8:       'int8',    i16: 'int16',   i32: 'int32',   i64: 'int64',
@@ -20,15 +23,16 @@ const coreKoffiTypes: Record<CTypeKind, string> = {
 }
 
 // ─── Node-specific types ──────────────────────────────────────────────────────
-const nodeKoffiTypes: Record<string, string> = {
+// KoffiTypeSpec allows string names OR actual koffi type objects (struct, pointer, …)
+const nodeKoffiTypes: Record<string, KoffiTypeSpec> = {
   'node:str16':   'str16',      // UTF-16 string (Windows WinAPI)
   'node:uintptr': 'uintptr_t',  // pointer-sized unsigned integer
   'node:intptr':  'intptr_t',   // pointer-sized signed integer
 }
 
-const allKoffiTypes: Record<string, string> = { ...coreKoffiTypes, ...nodeKoffiTypes }
+const allKoffiTypes: Record<string, KoffiTypeSpec> = { ...coreKoffiTypes, ...nodeKoffiTypes }
 
-function getKoffiType(kind: string): string {
+function getKoffiType(kind: string): KoffiTypeSpec {
   const type = allKoffiTypes[kind]
   if (type !== undefined) return type
   const hint =
