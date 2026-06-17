@@ -30,8 +30,9 @@ function getDenoType(kind: string): Deno.NativeResultType {
   const type = allDenoTypes[kind]
   if (type !== undefined) return type
   const hint =
-    kind.startsWith('bun:')  ? 'This is a Bun-specific type — run with Bun. See https://bun.sh/docs/api/ffi' :
-    kind.startsWith('node:') ? 'This is a Node.js-specific type — run with Node.js. See https://koffi.dev' :
+    kind.startsWith('bun:')   ? 'This is a Bun-specific type — run with Bun. See https://bun.sh/docs/api/ffi' :
+    kind.startsWith('node:')  ? 'This is a Node.js-specific type — run with Node.js.' :
+    kind.startsWith('koffi:') ? 'This is a koffi-specific type — run with Node.js and install koffi. See https://koffi.dev' :
     'Unknown type kind.'
   throw new Error(`[unffi/deno] Unsupported FFI type "${kind}". ${hint}`)
 }

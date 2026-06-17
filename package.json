@@ -5,14 +5,18 @@
   "type": "module",
   "exports": {
     ".": {
-      "bun": "./dist/adapters/bun.js",
-      "deno": "./dist/adapters/deno.js",
-      "node": "./dist/adapters/node.js",
-      "types": "./dist/index.d.ts",
+      "bun":     "./dist/adapters/bun.js",
+      "deno":    "./dist/adapters/deno.js",
+      "node":    "./dist/adapters/node.js",
+      "types":   "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./koffi": {
+      "types":   "./dist/adapters/koffi.d.ts",
+      "default": "./dist/adapters/koffi.js"
+    },
     "./types": {
-      "types": "./dist/types.d.ts",
+      "types":   "./dist/types.d.ts",
       "default": "./dist/types.js"
     }
   },

@@ -39,8 +39,9 @@ function getFFIType(kind: string): FFIType {
   const type = allFFITypes[kind]
   if (type !== undefined) return type
   const hint =
-    kind.startsWith('deno:') ? 'This is a Deno-specific type — run with Deno. See https://docs.deno.com/runtime/fundamentals/ffi/' :
-    kind.startsWith('node:') ? 'This is a Node.js-specific type — run with Node.js. See https://koffi.dev' :
+    kind.startsWith('deno:')  ? 'This is a Deno-specific type — run with Deno. See https://docs.deno.com/runtime/fundamentals/ffi/' :
+    kind.startsWith('node:')  ? 'This is a Node.js-specific type — run with Node.js.' :
+    kind.startsWith('koffi:') ? 'This is a koffi-specific type — run with Node.js and install koffi. See https://koffi.dev' :
     'Unknown type kind.'
   throw new Error(`[unffi/bun] Unsupported FFI type "${kind}". ${hint}`)
 }
