@@ -29,11 +29,9 @@ jobs:
 
       # bun pack resolves workspace deps and peer deps cleanly, producing a .tgz.
       - name: Pack with bun
-        run: bun pm pack --dry-run || bun pack
+        run: bun pm pack
 
       - name: Publish to npm (OIDC provenance)
         run: |
           TARBALL=$(ls *.tgz | head -1)
           npm publish "$TARBALL" --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
