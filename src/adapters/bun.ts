@@ -1,4 +1,4 @@
-import { dlopen as bunDlopen, FFIType, JSCallback } from 'bun:ffi'
+import { dlopen as bunDlopen, FFIType, JSCallback, CString } from 'bun:ffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
@@ -100,33 +100,57 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
   const lib = bunDlopen(path, bunSymbols)
   const callbacks = new Map<string, JSCallback>()
 
-  const symbols = new Proxy(lib.symbols as Record<string, (...args: unknown[]) => unknown>, {
-    get(target, name: string) {
-      const fn = target[name]
-      const def = schema[name]
-      if (!fn || !def) return undefined
+  // Build per-symbol wrappers once at dlopen time.
+  // Bun requires manual encoding/decoding for cstring — normalised here so
+  // users always work with plain JS strings regardless of runtime:
+  //   cstring INPUT  string → null-terminated Buffer
+  //   cstring OUTPUT CString  → plain string primitive
+  //   cstring in callback args (C→JS) → decoded via CString automatically
+  type BunPtr = number & { __pointer__: null }
 
-      const callbackIndexes = def.args
-        .map((a: CType<unknown>, i: number) => (a.kind === 'function' ? i : -1))
-        .filter((i: number) => i !== -1)
+  const symbols: Record<string, (...args: unknown[]) => unknown> = {}
 
-      if (callbackIndexes.length === 0) return fn
+  for (const [name, def] of Object.entries(schema)) {
+    const rawFn = (lib.symbols as Record<string, (...a: unknown[]) => unknown>)[name]!
 
-      return (...args: unknown[]) => {
-        const wrapped = [...args]
-        for (const i of callbackIndexes) {
-          const cb = def.args[i] as CCallback<readonly CType<unknown>[], CType<unknown>>
-          const jsCb = new JSCallback(args[i] as (...a: unknown[]) => unknown, {
-            args:    cb.argTypes.map((a: CType<unknown>) => getFFIType(a.kind)),
-            returns: getFFIType(cb.returnType.kind),
-          })
-          callbacks.set(`${name}:${i}`, jsCb)
-          wrapped[i] = jsCb.ptr
-        }
-        return fn(...wrapped)
+    const cstringInIdx  = def.args.map((a: CType<unknown>, i: number) => a.kind === 'cstring'  ? i : -1).filter(i => i !== -1)
+    const callbackIdx   = def.args.map((a: CType<unknown>, i: number) => a.kind === 'function' ? i : -1).filter(i => i !== -1)
+    const returnsCstring = def.returns.kind === 'cstring'
+
+    if (cstringInIdx.length === 0 && callbackIdx.length === 0 && !returnsCstring) {
+      symbols[name] = rawFn
+      continue
+    }
+
+    symbols[name] = (...args: unknown[]) => {
+      const wrapped = [...args]
+
+      for (const i of cstringInIdx) {
+        if (typeof wrapped[i] === 'string') wrapped[i] = Buffer.from(wrapped[i] as string + '\0')
       }
-    },
-  })
+
+      for (const i of callbackIdx) {
+        const cb       = def.args[i] as CCallback<readonly CType<unknown>[], CType<unknown>>
+        const userFn   = wrapped[i] as (...a: unknown[]) => unknown
+        const cbCstrIdx = cb.argTypes.map((a: CType<unknown>, j: number) => a.kind === 'cstring' ? j : -1).filter(j => j !== -1)
+
+        const wrappedFn = cbCstrIdx.length === 0 ? userFn : (...cbArgs: unknown[]) => {
+          for (const j of cbCstrIdx) cbArgs[j] = new CString(cbArgs[j] as BunPtr).toString()
+          return userFn(...cbArgs)
+        }
+
+        const jsCb = new JSCallback(wrappedFn, {
+          args:    cb.argTypes.map((a: CType<unknown>) => getFFIType(a.kind)),
+          returns: getFFIType(cb.returnType.kind),
+        })
+        callbacks.set(`${name}:${i}`, jsCb)
+        wrapped[i] = jsCb.ptr
+      }
+
+      const result = rawFn(...wrapped)
+      return returnsCstring && result instanceof String ? result.toString() : result
+    }
+  }
 
   function close() {
     for (const cb of callbacks.values()) cb.close()
