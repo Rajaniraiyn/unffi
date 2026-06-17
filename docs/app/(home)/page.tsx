@@ -1,18 +1,12 @@
 import Link from 'next/link';
-import { DynamicCodeBlock } from 'fumadocs-ui/components/dynamic-codeblock';
+import { home } from 'collections/server';
+import { getMDXComponents } from '@/components/mdx';
 
-const example = `import { dlopen, t } from 'unffi'
-
-await using lib = await dlopen('./libmath', {
-  add:   { args: [t.i32, t.i32], returns: t.i32 },
-  greet: { args: [t.cstring],    returns: t.cstring },
-})
-
-const sum = lib.symbols.add(2, 3)
-const hello = lib.symbols.greet('world')
-`;
+const codeSnippet = home.find((entry) => entry.info.path === 'code.mdx');
 
 export default function HomePage() {
+  const Snippet = codeSnippet?.body;
+
   return (
     <main className="flex flex-1 flex-col">
       <section className="border-fd-border border-b">
@@ -45,7 +39,11 @@ export default function HomePage() {
 
       <section>
         <div className="mx-auto max-w-4xl px-8 py-16 sm:py-20">
-          <DynamicCodeBlock lang="ts" code={example} />
+          {Snippet ? (
+            <div className="prose">
+              <Snippet components={getMDXComponents()} />
+            </div>
+          ) : null}
           <p className="text-fd-muted-foreground mt-6 text-sm leading-relaxed">
             Same source on Bun, Deno, and Node — the right FFI backend loads via{' '}
             <code className="font-mono">package.json</code> exports conditions.{' '}
