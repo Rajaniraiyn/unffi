@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["bun"],
+    "noEmit": true,
+    "composite": false,
+    "tsBuildInfoFile": "node_modules/.cache/test.tsbuildinfo"
+  },
+  "include": ["tests/**/*.ts"],
+  "references": [
+    { "path": "./tsconfig.bun.json" }
+  ]
+}
