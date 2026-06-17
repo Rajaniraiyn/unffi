@@ -1,4 +1,4 @@
-# unffi
+# UnFFI
 
 [![npm version](https://img.shields.io/npm/v/unffi?style=flat-square)](https://www.npmjs.com/package/unffi) [![license](https://img.shields.io/npm/l/unffi?style=flat-square)](./LICENSE) [![CI](https://img.shields.io/github/actions/workflow/status/rajaniraiyn/unffi/ci.yml?style=flat-square&label=CI)](https://github.com/rajaniraiyn/unffi/actions)
 

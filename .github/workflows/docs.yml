@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'src/**'
       - '.github/workflows/docs.yml'
   workflow_dispatch:
 
@@ -24,29 +25,27 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      # Install from workspace root so docs/ workspace deps are resolved.
       - run: bun install
 
-      # Build root unffi package first — docs use twoslash code samples that
-      # `import from 'unffi'`, which needs dist/*.d.ts to exist.
+      # Build root unffi package — docs twoslash code samples may import 'unffi'.
       - run: bun run build
 
-      # Re-run install so bun refreshes its snapshot of the `unffi` file:
-      # dep (docs/package.json has `"unffi": "../."`). The initial install
-      # snapshotted the source dir before dist/ existed.
+      # Re-install so bun refreshes its file: snapshot of unffi with dist/.
       - run: bun install
 
-      # NODE_ENV=production tells vite to use the /unffi/ base path so assets
-      # resolve correctly under https://<user>.github.io/unffi/.
       - run: bun run --cwd docs build
         env:
           NODE_ENV: production
+
+      # GitHub Pages serves the docs/out static export. Disable Jekyll so
+      # paths starting with _ (Next's _next/) are served.
+      - run: touch docs/out/.nojekyll
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: docs/.output/public
+          path: docs/out
 
       - id: deploy
         uses: actions/deploy-pages@v4
