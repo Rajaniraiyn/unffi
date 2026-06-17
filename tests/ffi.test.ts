@@ -228,7 +228,7 @@ if (IS_BUN) {
       await using l = dlopen(LIB, {
         identity_i64: { args: [tBun.bun.i64_fast], returns: tBun.bun.i64_fast },
       })
-      const result = l.symbols.identity_i64(42 as any)
+      const result = l.symbols.identity_i64(42)
       expect(typeof result === 'number' || typeof result === 'bigint').toBe(true)
       expect(Number(result)).toBe(42)
     })
@@ -237,7 +237,7 @@ if (IS_BUN) {
         identity_i64: { args: [tBun.bun.i64_fast], returns: tBun.bun.i64_fast },
       })
       const big = 9223372036854775807n
-      const result = l.symbols.identity_i64(big as any)
+      const result = l.symbols.identity_i64(big)
       expect(typeof result).toBe('bigint')
       expect(result).toBe(big)
     })
@@ -248,7 +248,7 @@ if (IS_BUN) {
       await using l = dlopen(LIB, {
         add_u64: { args: [tBun.bun.u64_fast, tBun.bun.u64_fast], returns: tBun.bun.u64_fast },
       })
-      const result = l.symbols.add_u64(1n as any, 2n as any)
+      const result = l.symbols.add_u64(1n, 2n)
       expect(Number(result)).toBe(3)
     })
   })
@@ -262,13 +262,13 @@ if (IS_DENO) {
       await using l = dlopen(LIB, {
         add_u64: { args: [tDeno.deno.usize, tDeno.deno.usize], returns: tDeno.deno.usize },
       })
-      expect(l.symbols.add_u64(1n as any, 2n as any)).toBe(3n)
+      expect(l.symbols.add_u64(1n, 2n)).toBe(3n)
     })
     test('isize identity', async () => {
       await using l = dlopen(LIB, {
         add_i64: { args: [tDeno.deno.isize, tDeno.deno.isize], returns: tDeno.deno.isize },
       })
-      expect(l.symbols.add_i64(-1n as any, 1n as any)).toBe(0n)
+      expect(l.symbols.add_i64(-1n, 1n)).toBe(0n)
     })
   })
 }
@@ -288,7 +288,7 @@ if (IS_NODE) {
       await using l = dlopen(LIB, {
         add_u64: { args: [tKoffi.koffi.uintptr, tKoffi.koffi.uintptr], returns: tKoffi.koffi.uintptr },
       })
-      expect(l.symbols.add_u64(1n as any, 2n as any)).toBe(3n)
+      expect(l.symbols.add_u64(1n, 2n)).toBe(3n)
     })
   })
 }
