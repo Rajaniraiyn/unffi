@@ -60,8 +60,8 @@ jobs:
       - if: matrix.runtime == 'node'
         run: |
           node ${{ matrix.ffi_flag }} -e "
+          ;(async () => {
           const { dlopen, t } = await import('./dist/adapters/node.js');
-          const { describe, test, before, after } = await import('node:test');
           const assert = await import('assert');
 
           const ext = process.platform === 'darwin' ? 'dylib' : 'so';
@@ -99,4 +99,5 @@ jobs:
           assert.strictEqual(received, 'hello');
 
           console.log('OK');
+          })();
           " 2>&1
