@@ -2,6 +2,7 @@ import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
 import { runtimeHint } from './hints.js'
+import { dlopen as napiDlopen } from './napi.js'
 
 export type { InferLibrary }
 
@@ -125,6 +126,8 @@ function decodeCStringResult(ptr: Deno.PointerValue): string | null {
 }
 
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
+  if (path.endsWith('.node')) return napiDlopen(path, schema)
+
   const denoSymbols: Record<string, Deno.ForeignFunction> = {}
 
   for (const [name, def] of Object.entries(schema)) {

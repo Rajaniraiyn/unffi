@@ -29,9 +29,9 @@ The schema defines which exports to surface and their TypeScript types. At runti
 
 `dlopen` detects `.node` paths automatically:
 
-- **Node.js**: loads via `require()` (synchronous, uses `module.createRequire`)
+- **Node.js**: loads via `createRequire` from `node:module`
+- **Deno**: loads via `createRequire` from `node:module` (requires `--allow-ffi` and a local `node_modules/` directory. See [Deno NAPI docs](https://docs.deno.com/runtime/fundamentals/ffi/))
 - **Bun**: delegates to `Bun.dlopen` which natively supports `.node` files
-- **Deno**: throws a descriptive error (`.node` files are not supported on Deno)
 
 You can also import the adapter directly:
 
