@@ -8,15 +8,16 @@ on:
 
 jobs:
   test:
-    name: ${{ matrix.runtime }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { runtime: bun, os: ubuntu-latest }
-          - { runtime: deno, os: ubuntu-latest }
-          - { runtime: node, os: ubuntu-latest }
+          - { name: bun,              runtime: bun,  os: ubuntu-latest }
+          - { name: deno,             runtime: deno, os: ubuntu-latest }
+          - { name: node-22-koffi,    runtime: node, os: ubuntu-latest, node-version: '22' }
+          - { name: node-26-native,   runtime: node, os: ubuntu-latest, node-version: '26', ffi_flag: '--experimental-ffi' }
 
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +33,7 @@ jobs:
       - if: matrix.runtime == 'node'
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: ${{ matrix.node-version }}
 
       - run: bun install
 
@@ -51,6 +52,9 @@ jobs:
       - if: matrix.runtime == 'deno'
         run: deno check dist/adapters/deno.js
 
-      # --- node ---
-      # Full Node runtime tests need a Node test harness (ffi.test.ts uses bun:test).
-      # Build above already validates the Node target via tsconfig.node.json.
+      # --- node (koffi fallback & native node:ffi) ---
+      - if: matrix.runtime == 'node'
+        run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
+
+      - if: matrix.runtime == 'node'
+        run: node ${{ matrix.ffi_flag }} tests/node-ffi-test.js
