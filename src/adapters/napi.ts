@@ -1,5 +1,3 @@
-/// <reference types="node" />
-
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CoreT } from '../types.js'
 import { t as coreT } from '../types.js'
