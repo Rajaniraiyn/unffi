@@ -6,7 +6,7 @@
 //   fnm exec --using=26 node  tests/napi-bcrypt.js
 
 async function main() {
-  const { dlopen, t } = await import('../src/adapters/napi.js')
+  const { dlopen, t } = await import('../dist/adapters/napi.js')
 
   // Find the bcrypt native addon path via node-gyp-build (handles all platforms)
   const { createRequire } = await import('module')

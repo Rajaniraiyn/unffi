@@ -8,7 +8,7 @@ const bcryptDir = req.resolve('bcrypt/package.json').replace('/package.json', ''
 const nodeGypBuild = req(req.resolve('node-gyp-build', { paths: [bcryptDir] }))
 const bcryptNode = nodeGypBuild.path(bcryptDir)
 
-const { dlopen } = await import('../src/adapters/node.js')
+const { dlopen } = await import('../dist/adapters/node.js')
 
 // Empty schema — just verify the addon loads without error
 const { symbols, close } = dlopen(bcryptNode, {})
