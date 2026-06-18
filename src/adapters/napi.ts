@@ -10,6 +10,10 @@ export interface NapiT extends CoreT {
 
 export const t = coreT as NapiT
 
+declare var process: {
+  dlopen(m: object, filename: string, flags?: number): void
+}
+
 const IS_DENO = 'Deno' in globalThis
 
 function loadAddon(path: string): Record<string, unknown> {
