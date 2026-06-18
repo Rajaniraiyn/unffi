@@ -2,7 +2,8 @@ import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { dlopen, t } from '../src/adapters/napi.js'
 import { join } from 'node:path'
 
-const BCRYPT_NODE = join(import.meta.dir, 'fixtures/bcrypt.node')
+const fixture = `${process.platform}-${process.arch}`
+const BCRYPT_NODE = join(import.meta.dir, 'fixtures', `bcrypt.${fixture}.node`)
 
 function openNapi() {
   return dlopen(BCRYPT_NODE, {
