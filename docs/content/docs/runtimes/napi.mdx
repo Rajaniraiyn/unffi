@@ -9,7 +9,7 @@ NAPI addons are compiled native modules (from `node-gyp`, `node-addon-api`, `nap
 
 ## Usage
 
-```ts
+```ts twoslash
 import { dlopen, t } from 'unffi'
 
 const addon = await dlopen('./my-addon.node', {
@@ -41,7 +41,8 @@ import { dlopen, t } from 'unffi/napi'
 
 ## Loading `.node` addons compiled with napi-rs
 
-```ts
+```ts twoslash
+import { dlopen, t } from 'unffi'
 // addon built with napi-rs exports { hello, add }
 await using lib = await dlopen('./native-addon.node', {
   hello: { args: [], returns: t.cstring },
