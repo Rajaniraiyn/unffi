@@ -14,7 +14,7 @@ const IS_DENO = 'Deno' in globalThis
 
 function loadAddon(path: string): Record<string, unknown> {
   const mod = { exports: {} as Record<string, unknown>, id: path, filename: path }
-  process.dlopen(mod, path, 0)
+  process.dlopen(mod, path, 1)
   return mod.exports
 }
 
