@@ -8,10 +8,14 @@
 async function main() {
   const { dlopen, t } = await import('../src/adapters/napi.js')
 
-  const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
-  const PLATFORM = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
-  const BCRYPT = `node_modules/bcrypt/prebuilds/${PLATFORM}-${ARCH}/bcrypt.node`
-  const { symbols, close } = dlopen(BCRYPT, {
+  // Find the bcrypt native addon path via node-gyp-build (handles all platforms)
+  const { createRequire } = await import('module')
+  const req = createRequire(import.meta.url)
+  const bcryptDir = req.resolve('bcrypt/package.json').replace('/package.json', '')
+  const nodeGypBuild = req(require.resolve('node-gyp-build', { paths: [bcryptDir] }))
+  const bcryptNode = nodeGypBuild.path(bcryptDir)
+
+  const { symbols, close } = dlopen(bcryptNode, {
     gen_salt_sync: { args: [t.cstring, t.i32, t.buffer], returns: t.cstring },
     encrypt_sync:  { args: [t.cstring, t.cstring], returns: t.cstring },
     compare_sync:  { args: [t.cstring, t.cstring], returns: t.bool },

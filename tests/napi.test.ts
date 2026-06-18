@@ -1,12 +1,15 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { dlopen, t } from '../src/adapters/napi.js'
+import { createRequire } from 'module'
+const req = createRequire(import.meta.url)
 
-const ARCH = process.arch === 'arm64' ? 'arm64' : 'x64'
-const PLATFORM = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
-const BCRYPT = `node_modules/bcrypt/prebuilds/${PLATFORM}-${ARCH}/bcrypt.node`
+// Load bcrypt to get the native addon path, then use it with unffi/napi
+const bcryptDir = req.resolve('bcrypt/package.json').replace('/package.json', '')
+const nodeGypBuild = req(require.resolve('node-gyp-build', { paths: [bcryptDir] }))
+const BCRYPT_NODE = nodeGypBuild.path(bcryptDir)
 
 function openNapi() {
-  return dlopen(BCRYPT, {
+  return dlopen(BCRYPT_NODE, {
     gen_salt_sync: { args: [t.cstring, t.i32, t.buffer], returns: t.cstring },
     encrypt_sync:  { args: [t.cstring, t.cstring], returns: t.cstring },
     compare_sync:  { args: [t.cstring, t.cstring], returns: t.bool },
