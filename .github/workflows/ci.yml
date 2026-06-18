@@ -57,12 +57,12 @@ jobs:
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
 
       # Run a focused inline test using the compiled dist output (avoids bun:ffi / bun:test imports).
+      # Use --input-type=module so top-level await and await using work on Node 22+.
       - if: matrix.runtime == 'node'
         run: |
-          node ${{ matrix.ffi_flag }} -e "
-          ;(async () => {
-          const { dlopen, t } = await import('./dist/adapters/node.js');
-          const assert = await import('assert');
+          node ${{ matrix.ffi_flag }} --input-type=module -e "
+          import { dlopen, t } from './dist/adapters/node.js';
+          import assert from 'assert';
 
           const ext = process.platform === 'darwin' ? 'dylib' : 'so';
 
@@ -99,5 +99,4 @@ jobs:
           assert.strictEqual(received, 'hello');
 
           console.log('OK');
-          })();
           " 2>&1
