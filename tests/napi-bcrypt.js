@@ -9,10 +9,10 @@ async function main() {
   const { dlopen, t } = await import('../dist/adapters/napi.js')
 
   // Find the bcrypt native addon path via node-gyp-build (handles all platforms)
-  const { createRequire } = await import('module')
+  const { createRequire } = await import('node:module')
   const req = createRequire(import.meta.url)
   const bcryptDir = req.resolve('bcrypt/package.json').replace('/package.json', '')
-  const nodeGypBuild = req(require.resolve('node-gyp-build', { paths: [bcryptDir] }))
+  const nodeGypBuild = req(req.resolve('node-gyp-build', { paths: [bcryptDir] }))
   const bcryptNode = nodeGypBuild.path(bcryptDir)
 
   const { symbols, close } = dlopen(bcryptNode, {
