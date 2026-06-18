@@ -90,11 +90,5 @@
   "homepage": "https://github.com/Rajaniraiyn/unffi#readme",
   "bugs": {
     "url": "https://github.com/Rajaniraiyn/unffi/issues"
-  },
-  "trustedDependencies": [
-    "koffi"
-  ],
-  "dependencies": {
-    "bcrypt": "^6.0.0"
   }
 }

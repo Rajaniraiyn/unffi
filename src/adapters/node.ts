@@ -238,5 +238,3 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
   if (ffiState === 'available') return nativeDlopen(path, schema)
   return koffiDlopen(path, schema)
 }
-
-export type { CoreT }

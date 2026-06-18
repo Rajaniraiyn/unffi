@@ -30,17 +30,17 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
   try {
     addon = loadAddon(path)
   } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e)
     if (IS_DENO) {
       throw new Error(
         `[unffi/napi] Failed to load native addon "${path}".\n` +
         '  Deno requires --allow-ffi to load .node native addons.\n' +
         '  Run with: deno run --allow-ffi <script>\n' +
-        `  ${(e as Error).message}`,
+        `  ${msg}`,
       )
     }
     throw new Error(
-      `[unffi/napi] Failed to load native addon "${path}".\n` +
-      `  ${(e as Error).message}`,
+      `[unffi/napi] Failed to load native addon "${path}".\n  ${msg}`,
     )
   }
 
@@ -57,11 +57,7 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     symbols[name] = fn as (...args: unknown[]) => unknown
   }
 
-  let closed = false
-  function close() {
-    if (closed) return
-    closed = true
-  }
+  function close() {}
 
   return {
     symbols: symbols as InferLibrary<S>['symbols'],

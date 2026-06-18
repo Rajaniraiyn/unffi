@@ -1,12 +1,8 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { dlopen, t } from '../src/adapters/napi.js'
-import { createRequire } from 'module'
-const req = createRequire(import.meta.url)
+import { join } from 'node:path'
 
-// Load bcrypt to get the native addon path, then use it with unffi/napi
-const bcryptDir = req.resolve('bcrypt/package.json').replace('/package.json', '')
-const nodeGypBuild = req(require.resolve('node-gyp-build', { paths: [bcryptDir] }))
-const BCRYPT_NODE = nodeGypBuild.path(bcryptDir)
+const BCRYPT_NODE = join(import.meta.dir, 'fixtures/bcrypt.node')
 
 function openNapi() {
   return dlopen(BCRYPT_NODE, {

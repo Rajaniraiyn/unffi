@@ -53,9 +53,6 @@ jobs:
       - if: matrix.runtime == 'deno'
         run: deno check dist/adapters/deno.js
 
-      - if: matrix.runtime == 'deno'
-        run: deno run -A tests/napi-bcrypt.js
-
       # --- node (koffi fallback & native node:ffi) ---
       - if: matrix.runtime == 'node'
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
@@ -103,9 +100,3 @@ jobs:
           lib.close();
           console.log('OK');
           "
-
-      - if: matrix.runtime == 'node'
-        run: node ${{ matrix.ffi_flag }} tests/napi-bcrypt.js
-
-      - if: matrix.runtime == 'node'
-        run: node ${{ matrix.ffi_flag }} tests/napi-routing.js
