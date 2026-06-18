@@ -46,11 +46,15 @@ jobs:
       - if: matrix.runtime == 'bun'
         run: bun test tests/ffi.test.ts
 
+      - if: matrix.runtime == 'bun'
+        run: bun test tests/napi.test.ts
+
       # --- deno ---
-      # Full Deno runtime tests need a Deno-specific test harness (ffi.test.ts uses bun:test).
-      # Have Deno check the emitted output to verify it's consumable by Deno users.
       - if: matrix.runtime == 'deno'
         run: deno check dist/adapters/deno.js
+
+      - if: matrix.runtime == 'deno'
+        run: deno run -A tests/napi-bcrypt.js
 
       # --- node (koffi fallback & native node:ffi) ---
       - if: matrix.runtime == 'node'
@@ -98,4 +102,10 @@ jobs:
           lib2.close();
           lib.close();
           console.log('OK');
-          " 2>&1
+          "
+
+      - if: matrix.runtime == 'node'
+        run: node ${{ matrix.ffi_flag }} tests/napi-bcrypt.js
+
+      - if: matrix.runtime == 'node'
+        run: node ${{ matrix.ffi_flag }} tests/napi-routing.js

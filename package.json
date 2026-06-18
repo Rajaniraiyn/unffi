@@ -54,7 +54,7 @@
     "koffi": "^2.9.0 || ^3.0.0"
   },
   "devDependencies": {
-    "@types/bun":  "^1.3.0",
+    "@types/bun": "^1.3.0",
     "@types/deno": "^2.7.0",
     "@types/node": "^18.0.0",
     "@typescript/native-preview": "latest"
@@ -63,10 +63,12 @@
     "typescript": ">=5.2.0 <6"
   },
   "peerDependenciesMeta": {
-    "typescript": { "optional": true }
+    "typescript": {
+      "optional": true
+    }
   },
   "engines": {
-    "bun":  ">=1.0.0",
+    "bun": ">=1.0.0",
     "node": ">=18.0.0"
   },
   "keywords": [
@@ -91,5 +93,8 @@
   },
   "trustedDependencies": [
     "koffi"
-  ]
+  ],
+  "dependencies": {
+    "bcrypt": "^6.0.0"
+  }
 }
