@@ -9,6 +9,7 @@
     "src/define.ts",
     "src/adapters/hints.ts",
     "src/adapters/koffi.ts",
-    "src/adapters/node.ts"
+    "src/adapters/node.ts",
+    "src/adapters/napi.ts"
   ]
 }

@@ -1,6 +1,7 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
 import { dlopen as koffiDlopen, t as koffiT, type KoffiT } from './koffi.js'
+import { dlopen as napiDlopen } from './napi.js'
 import { runtimeHint } from './hints.js'
 
 export type { InferLibrary, KoffiT }
@@ -233,6 +234,7 @@ function wrapCallbacks(
 }
 
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
+  if (path.endsWith('.node')) return napiDlopen(path, schema)
   if (ffiState === 'available') return nativeDlopen(path, schema)
   return koffiDlopen(path, schema)
 }

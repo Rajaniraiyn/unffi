@@ -1,0 +1,58 @@
+---
+title: NAPI (`.node` addons)
+description: Loading native Node-API addons (.node files) via unffi's unified interface.
+---
+
+unffi can load `.node` native addons alongside regular shared libraries. When the path ends in `.node`, unffi automatically switches to the NAPI adapter — no manual routing needed.
+
+NAPI addons are compiled native modules (from `node-gyp`, `node-addon-api`, `napi-rs`, etc.) that export JavaScript functions directly, rather than C ABI symbols.
+
+## Usage
+
+```ts
+import { dlopen, t } from 'unffi'
+
+const addon = await dlopen('./my-addon.node', {
+  hello: { args: [], returns: t.cstring },
+  add:   { args: [t.i32, t.i32], returns: t.i32 },
+})
+
+const msg = addon.symbols.hello()
+//    ^? string
+const sum = addon.symbols.add(3, 4)
+//    ^? number
+```
+
+The schema defines which exports to surface and their TypeScript types. At runtime, NAPI addon functions already accept and return JavaScript values — the type annotations serve for type safety, not marshalling.
+
+## Automatic routing
+
+`dlopen` detects `.node` paths automatically:
+
+- **Node.js**: loads via `require()` (synchronous, uses `module.createRequire`)
+- **Bun**: delegates to `Bun.dlopen` which natively supports `.node` files
+- **Deno**: throws a descriptive error (`.node` files are not supported on Deno)
+
+You can also import the adapter directly:
+
+```ts
+import { dlopen, t } from 'unffi/napi'
+```
+
+## Loading `.node` addons compiled with napi-rs
+
+```ts
+// addon built with napi-rs exports { hello, add }
+await using lib = await dlopen('./native-addon.node', {
+  hello: { args: [], returns: t.cstring },
+  add:   { args: [t.i32, t.i32], returns: t.i32 },
+})
+```
+
+## Lifecycle
+
+NAPI addons cannot be unloaded from the process. The `close()` method and `Symbol.dispose` are provided for interface consistency but are no-ops — double-close is safe.
+
+<Callout>
+Unlike shared libraries (`.so`/`.dylib`), NAPI addons register their exports during `require()` — the schema acts as a contract rather than an ABI definition.
+</Callout>

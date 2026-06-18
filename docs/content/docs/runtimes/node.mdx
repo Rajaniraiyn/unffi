@@ -1,15 +1,18 @@
 ---
-title: Node.js
-description: Using unffi on Node.js — koffi backend, structs, output params, wide strings.
+title: Node.js (native)
+description: Using unffi with native node:ffi (Node ≥26.3.0) — no build step, built-in FFI.
 ---
 
-Node has no stable built-in FFI. unffi uses [koffi](https://koffi.dev) — a pre-compiled native addon, no build step. It installs as an optional peer dependency.
+Node ≥26.3.0 ships `node:ffi` as a stable built-in module. unffi detects it automatically — no schema changes needed when upgrading from koffi.
 
 ```sh
-npm install unffi koffi
+# Node ≥26.3.0 — stable, no flag needed
+node --experimental-ffi main.mjs
 ```
 
-If `koffi` is missing, `dlopen` throws with a clear install hint. When `node:ffi` stabilises in a future Node release, unffi will prefer it automatically with no schema changes required.
+<Callout type="warn">
+Native `node:ffi` is stable in Node 26.3.0+. Earlier 26.x versions require `--experimental-ffi` and may have incomplete ABI support — unffi falls back to koffi in that case.
+</Callout>
 
 ## Quick start
 
@@ -27,109 +30,29 @@ const root = lib.symbols.sqrt(2.0)
 //    ^?
 ```
 
-## Structs
+## Feature parity
+
+All core unffi features work identically with the native backend:
+
+- **Primitives**: `t.i8`–`t.i64`, `t.u8`–`t.u64`, `t.f32`, `t.f64`
+- **Bool**: `t.bool` (returned as `boolean`)
+- **CString**: `t.cstring` (auto-encodes input string, decodes output)
+- **Buffer**: `t.buffer` for zero-copy TypedArray arguments
+- **Callbacks**: `t.fn(args, returns)` for function pointers
+- **Async**: `async: true` for non-blocking FFI
+
+## Type compatibility
+
+`node:ffi` always returns `bigint` for `i64`/`u64`. koffi returns `number` for small values — if you're migrating, use `Number()` for cross-backend compatibility:
 
 ```ts
-import { dlopen, t } from 'unffi'
-
-const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
-
-await using lib = await dlopen('./geom.dylib', {
-  translate: { args: [Point, t.f64, t.f64], returns: Point },
-  distance:  { args: [Point], returns: t.f64 },
-})
-
-lib.symbols.translate({ x: 1.0, y: 2.0 }, 10.0, 20.0)
-// → { x: 11.0, y: 22.0 }
-
-lib.symbols.distance({ x: 3.0, y: 4.0 })
-// → 5.0
+const val = Number(lib.symbols.add_i64(1n, 2n))  // 3
 ```
 
-Field values accept unffi `CType` tokens or raw koffi type strings.
+## `t` namespace
 
-## Arrays
+The `t` object on Node exports the same `KoffiT` interface for both backends, so your schema works unchanged whether native `node:ffi` or koffi is active.
 
-```ts
-const Hash32 = t.koffi.array(t.u8, 32)   // uint8_t[32]
+## Koffi features
 
-await using lib = await dlopen('./crypto.dylib', {
-  sha256: { args: [t.buffer, t.i32], returns: Hash32 },
-})
-
-const hash = lib.symbols.sha256(new Uint8Array(64), 64)
-// → Uint8Array(32) [...]
-```
-
-## Output parameters
-
-C functions that write through a pointer:
-
-```ts
-const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
-
-await using lib = await dlopen('./geom.dylib', {
-  get_origin: { args: [t.koffi.out(Point)], returns: t.void },
-  get_bounds: { args: [t.koffi.out(Point), t.koffi.out(Point)], returns: t.void },
-})
-
-const [origin] = lib.symbols.get_origin()
-// origin = { x: 0, y: 0 }
-
-const [min, max] = lib.symbols.get_bounds()
-```
-
-`t.koffi.out(type)` handles pointer wrapping internally. Use `t.koffi.inout(type)` when the C function reads and writes.
-
-## Pointer-sized integers
-
-```ts
-t.koffi.uintptr   // uintptr_t → bigint
-t.koffi.intptr    // intptr_t  → bigint
-```
-
-## Async / nonblocking calls
-
-koffi runs async calls on its own worker pool:
-
-```ts twoslash
-import { dlopen, t } from 'unffi'
-
-const lib = await dlopen('./codec.dylib', {
-  encode: { args: [t.buffer, t.i32], returns: t.i32, async: true },
-})
-
-const outLen = await lib.symbols.encode(new Uint8Array(1024), 1024)
-//    ^?
-```
-
-## Opaque handles
-
-```ts
-const DB = t.koffi.opaque('DB')
-const DBPtr = t.koffi.pointer(DB)
-
-await using lib = await dlopen('./db.dylib', {
-  db_open:  { args: [t.cstring], returns: DBPtr },
-  db_exec:  { args: [DBPtr, t.cstring], returns: t.i32 },
-  db_close: { args: [DBPtr], returns: t.void },
-})
-
-const db = lib.symbols.db_open('./data.db')
-lib.symbols.db_exec(db, 'SELECT 1')
-lib.symbols.db_close(db)
-```
-
-## Windows wide strings
-
-```ts
-t.koffi.str16   // UTF-16 wchar_t* — for Win32 APIs
-```
-
-## Escape hatch
-
-Direct access to the raw koffi module:
-
-```ts
-const koffi = t.koffi.raw
-```
+Some koffi-specific features (`t.koffi.struct`, `t.koffi.out`, opaque handles, wide strings) are only available via the koffi adapter. See the [koffi runtime docs](./koffi) for details.

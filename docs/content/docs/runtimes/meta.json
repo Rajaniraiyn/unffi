@@ -1,4 +1,4 @@
 {
   "title": "Runtimes",
-  "pages": ["bun", "deno", "node"]
+  "pages": ["bun", "deno", "node", "koffi", "napi"]
 }

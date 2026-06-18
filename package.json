@@ -24,6 +24,14 @@
     "./types": {
       "types": "./dist/types.d.ts",
       "default": "./dist/types.js"
+    },
+    "./napi": {
+      "node": {
+        "types": "./dist/adapters/napi.d.ts",
+        "default": "./dist/adapters/napi.js"
+      },
+      "types": "./dist/adapters/napi.d.ts",
+      "default": "./dist/adapters/napi.js"
     }
   },
   "files": [
@@ -68,6 +76,8 @@
     "node",
     "native",
     "dylib",
+    "napi",
+    "node-api",
     "unjs"
   ],
   "license": "MIT",

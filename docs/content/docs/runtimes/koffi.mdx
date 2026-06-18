@@ -1,0 +1,145 @@
+---
+title: Node.js (koffi)
+description: Using unffi with the koffi backend on Node.js — structs, output params, opaque handles, wide strings.
+---
+
+Node.js has no stable built-in FFI before v26.3.0. unffi uses [koffi](https://koffi.dev) — a pre-compiled native addon, no build step. It installs as an optional peer dependency.
+
+```sh
+npm install unffi koffi
+```
+
+If `koffi` is missing, `dlopen` throws with a clear install hint. When running on Node ≥26.3.0 with `--experimental-ffi`, unffi prefers native `node:ffi` automatically — fall back to koffi explicitly by importing from `'unffi'` and using koffi-specific types.
+
+## Quick start
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./libmath.dylib', {
+  add:  { args: [t.i32, t.i32], returns: t.i32 },
+  sqrt: { args: [t.f64],        returns: t.f64 },
+})
+
+const sum  = lib.symbols.add(3, 4)
+//    ^?
+const root = lib.symbols.sqrt(2.0)
+//    ^?
+```
+
+Core primitives (`t.i32`, `t.cstring`, `t.buffer`, `t.fn(...)`, `t.bool`) work identically to the native backend.
+
+## Structs
+
+```ts
+import { dlopen, t } from 'unffi'
+
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+await using lib = await dlopen('./geom.dylib', {
+  translate: { args: [Point, t.f64, t.f64], returns: Point },
+  distance:  { args: [Point], returns: t.f64 },
+})
+
+lib.symbols.translate({ x: 1.0, y: 2.0 }, 10.0, 20.0)
+// → { x: 11.0, y: 22.0 }
+
+lib.symbols.distance({ x: 3.0, y: 4.0 })
+// → 5.0
+```
+
+Field values accept unffi `CType` tokens or raw koffi type strings.
+
+## Arrays
+
+```ts
+const Hash32 = t.koffi.array(t.u8, 32)   // uint8_t[32]
+
+await using lib = await dlopen('./crypto.dylib', {
+  sha256: { args: [t.buffer, t.i32], returns: Hash32 },
+})
+
+const hash = lib.symbols.sha256(new Uint8Array(64), 64)
+// → Uint8Array(32) [...]
+```
+
+## Output parameters
+
+C functions that write through a pointer:
+
+```ts
+const Point = t.koffi.struct({ x: t.f64, y: t.f64 })
+
+await using lib = await dlopen('./geom.dylib', {
+  get_origin: { args: [t.koffi.out(Point)], returns: t.void },
+  get_bounds: { args: [t.koffi.out(Point), t.koffi.out(Point)], returns: t.void },
+})
+
+const [origin] = lib.symbols.get_origin()
+// origin = { x: 0, y: 0 }
+
+const [min, max] = lib.symbols.get_bounds()
+```
+
+`t.koffi.out(type)` handles pointer wrapping internally. Use `t.koffi.inout(type)` when the C function reads and writes.
+
+## Pointer-sized integers
+
+```ts
+t.koffi.uintptr   // uintptr_t → bigint
+t.koffi.intptr    // intptr_t  → bigint
+```
+
+## Opaque handles
+
+```ts
+const DB = t.koffi.opaque('DB')
+const DBPtr = t.koffi.pointer(DB)
+
+await using lib = await dlopen('./db.dylib', {
+  db_open:  { args: [t.cstring], returns: DBPtr },
+  db_exec:  { args: [DBPtr, t.cstring], returns: t.i32 },
+  db_close: { args: [DBPtr], returns: t.void },
+})
+
+const db = lib.symbols.db_open('./data.db')
+lib.symbols.db_exec(db, 'SELECT 1')
+lib.symbols.db_close(db)
+```
+
+## Windows wide strings
+
+```ts
+t.koffi.str16   // UTF-16 wchar_t* — for Win32 APIs
+```
+
+## Async / nonblocking calls
+
+koffi runs async calls on its own worker pool:
+
+```ts twoslash
+import { dlopen, t } from 'unffi'
+
+const lib = await dlopen('./codec.dylib', {
+  encode: { args: [t.buffer, t.i32], returns: t.i32, async: true },
+})
+
+const outLen = await lib.symbols.encode(new Uint8Array(1024), 1024)
+//    ^?
+```
+
+## Escape hatch
+
+Direct access to the raw koffi module:
+
+```ts
+const koffi = t.koffi.raw
+```
+
+## Installation
+
+koffi is an optional peer dependency. Install it alongside unffi:
+
+```sh
+npm install unffi koffi
+```
