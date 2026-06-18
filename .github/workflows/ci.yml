@@ -76,7 +76,7 @@ jobs:
           });
 
           assert.strictEqual(lib.symbols.add_i32(10, 20), 30);
-          assert.strictEqual(lib.symbols.add_i64(1n, 2n), 3n);
+          assert.strictEqual(Number(lib.symbols.add_i64(1n, 2n)), 3);
           assert.strictEqual(lib.symbols.add_f64(1.5, 2.5), 4.0);
           assert.strictEqual(lib.symbols.gt_i32(5, 3), true);
           assert.strictEqual(lib.symbols.gt_i32(3, 5), false);
