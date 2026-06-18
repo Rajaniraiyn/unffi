@@ -57,7 +57,6 @@ jobs:
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
 
       # Run a focused inline test using the compiled dist output (avoids bun:ffi / bun:test imports).
-      # Use --input-type=module so top-level await and await using work on Node 22+.
       - if: matrix.runtime == 'node'
         run: |
           node ${{ matrix.ffi_flag }} --input-type=module -e "
@@ -66,8 +65,7 @@ jobs:
 
           const ext = process.platform === 'darwin' ? 'dylib' : 'so';
 
-          // --- core types ---
-          await using lib = dlopen('/tmp/unffi_math.' + ext, {
+          const lib = dlopen('/tmp/unffi_math.' + ext, {
             add_i32: { args: [t.i32,  t.i32  ], returns: t.i32     },
             add_i64: { args: [t.i64,  t.i64  ], returns: t.i64     },
             add_f64: { args: [t.f64,  t.f64  ], returns: t.f64     },
@@ -88,8 +86,7 @@ jobs:
           const arr = new Int32Array([1, 2, 3, 4, 5]);
           assert.strictEqual(lib.symbols.sum_i32(arr, arr.length), 15);
 
-          // --- callbacks ---
-          await using lib2 = dlopen('/tmp/unffi_math.' + ext, {
+          const lib2 = dlopen('/tmp/unffi_math.' + ext, {
             apply:       { args: [t.fn([t.i32], t.i32), t.i32], returns: t.i32 },
             with_message: { args: [t.fn([t.cstring], t.void), t.cstring], returns: t.void },
           });
@@ -98,5 +95,7 @@ jobs:
           lib2.symbols.with_message((msg) => { received = msg; }, 'hello');
           assert.strictEqual(received, 'hello');
 
+          lib2.close();
+          lib.close();
           console.log('OK');
           " 2>&1
