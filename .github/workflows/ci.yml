@@ -111,9 +111,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux,   os: ubuntu-latest,  module: linux,   bun-test: tests/linux.test.ts }
-          - { name: macos,   os: macos-latest,   module: macos,   bun-test: tests/macos.test.ts }
-          - { name: windows, os: windows-latest, module: windows, bun-test: tests/windows.test.ts }
+          - { name: linux,   os: ubuntu-latest,  module: linux,   bun-test: "tests/linux.test.ts tests/linux-generated.test.ts" }
+          - { name: macos,   os: macos-latest,   module: macos,   bun-test: "tests/macos.test.ts tests/macos-generated.test.ts" }
+          - { name: windows, os: windows-latest, module: windows, bun-test: "tests/windows.test.ts tests/windows-generated.test.ts" }
 
     steps:
       - uses: actions/checkout@v4
