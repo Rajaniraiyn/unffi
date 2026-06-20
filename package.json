@@ -85,6 +85,18 @@
       "types": "./dist/windows.d.ts",
       "default": "./dist/windows.js"
     },
+    "./windows/kernel32": {
+      "types": "./dist/windows/kernel32.d.ts",
+      "default": "./dist/windows/kernel32.js"
+    },
+    "./windows/advapi32": {
+      "types": "./dist/windows/advapi32.d.ts",
+      "default": "./dist/windows/advapi32.js"
+    },
+    "./windows/user32": {
+      "types": "./dist/windows/user32.d.ts",
+      "default": "./dist/windows/user32.js"
+    },
     "./unplugin": {
       "types": "./dist/unplugin.d.ts",
       "default": "./dist/unplugin.js"
