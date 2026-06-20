@@ -96,6 +96,18 @@ const hello = lib.symbols.greet('world')
 
 </Steps>
 
+## Built-in system bindings
+
+You do not always need to write a schema yourself. UnFFI ships focused OS bindings for common native libraries:
+
+```ts
+import { openCoreFoundation } from 'unffi/macos/CoreFoundation'
+import { openLibc } from 'unffi/linux/libc'
+import { openKernel32 } from 'unffi/windows/kernel32'
+```
+
+These modules use the same schema inference and `await using` lifecycle as manual `dlopen`. See [System libraries](/docs/system-libraries) for the platform reference.
+
 ## Lifecycle
 
 `dlopen` returns an [`AsyncDisposable`](https://github.com/tc39/proposal-explicit-resource-management). The `await using` statement closes the handle when the block exits, even on throw.

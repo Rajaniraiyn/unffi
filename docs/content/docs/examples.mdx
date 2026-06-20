@@ -1,0 +1,42 @@
+---
+title: Examples
+description: Runnable scripts for native system libraries.
+---
+
+The repository includes examples under `examples/`. Build first, then run the script for your OS:
+
+```sh
+bun run build
+bun examples/macos/security-random.ts
+```
+
+Each OS-specific script exits early on the wrong platform.
+
+## macOS
+
+| Example | What it shows |
+|---|---|
+| `examples/macos/libsystem-process.ts` | Process IDs and native C string helpers from `libSystem`. |
+| `examples/macos/corefoundation-clock.ts` | CoreFoundation absolute time and type IDs. |
+| `examples/macos/security-random.ts` | Cryptographic bytes from `Security.framework`. |
+| `examples/macos/systemconfiguration-metadata.ts` | Safe metadata for pointer-returning SystemConfiguration APIs. |
+
+## Linux
+
+| Example | What it shows |
+|---|---|
+| `examples/linux/libc-process.ts` | Process IDs and native C string helpers from libc. |
+| `examples/linux/libm-native-math.ts` | Native `libm` trigonometry and floating-point helpers. |
+| `examples/linux/pthread-self.ts` | Native pthread identity for the current JS thread. |
+| `examples/linux/unistd-access.ts` | POSIX user/group IDs and access checks. |
+| `examples/linux/libdl-metadata.ts` | Dynamic-loader metadata without forcing a failing loader call. |
+
+## Windows
+
+| Example | What it shows |
+|---|---|
+| `examples/windows/kernel32-process.ts` | Process/thread IDs, uptime, and ANSI string length. |
+| `examples/windows/advapi32-username.ts` | Native username lookup with Win32 output buffers. |
+| `examples/windows/user32-system-metrics.ts` | Desktop metrics and double-click timing from `user32`. |
+
+These examples are intentionally small. They teach the typed FFI boundary, not broad OS wrapper design.

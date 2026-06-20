@@ -1,0 +1,46 @@
+---
+title: Platform guards
+description: Keep OS-specific bindings safe in cross-platform projects.
+---
+
+System libraries only exist on their platform. Guard examples and tests before opening an OS-specific module.
+
+```ts
+if (process.platform !== 'darwin') {
+  console.log('This example uses Security.framework and only runs on macOS.')
+  process.exit(0)
+}
+```
+
+| Platform | `process.platform` |
+|---|---|
+| macOS | `'darwin'` |
+| Linux | `'linux'` |
+| Windows | `'win32'` |
+
+For tests, use a skip guard:
+
+```ts
+const run = process.platform === 'linux' ? test : test.skip
+```
+
+## Runtime requirements
+
+- Bun and Deno ship native FFI.
+- Node uses `node:ffi` where available, otherwise `koffi`.
+- Deno scripts that load libraries need `--allow-ffi`; examples that read overrides also need `--allow-env`.
+- None of these bindings run in the browser.
+
+## Library path overrides
+
+Every shipped module accepts a direct override and an environment override:
+
+```ts
+await using libc = await openLibc('/lib/x86_64-linux-gnu/libc.so.6')
+```
+
+```sh
+UNFFI_LIBC_PATH=/lib/x86_64-linux-gnu/libc.so.6 bun app.ts
+```
+
+macOS system libraries may live in the dyld shared cache. UnFFI accepts canonical framework paths such as `/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation` even when they are not visible as ordinary files.
