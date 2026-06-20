@@ -71,7 +71,7 @@ if (ffiState === 'available-but-incomplete') {
   process.emitWarning(
     `node:ffi is available in Node ${process.versions.node} but its function-call ABI is not ` +
     'yet complete (wrapped functions report "expected 0 arguments"). Falling back to koffi. ' +
-    'Upgrade to Node 26.3.0 or later once node:ffi stabilises.',
+    `Upgrade to Node ${NODE_FFI_STABLE_VERSION} or later once node:ffi stabilises.`,
     'UnffiWarning',
   )
 }

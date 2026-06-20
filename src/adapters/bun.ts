@@ -114,7 +114,7 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     }
 
     symbols[name] = (...args: unknown[]) => {
-      const wrapped = args.length === def.args.length ? args.slice() : [...args]
+      const wrapped = [...args]
 
       for (const i of cstringInIdx) {
         const v = wrapped[i]

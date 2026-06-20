@@ -14,6 +14,12 @@ function openNapi() {
   })
 }
 
+function randomSeed() {
+  const seed = new Uint8Array(16)
+  crypto.getRandomValues(seed)
+  return seed
+}
+
 let lib: ReturnType<typeof openNapi>
 
 beforeAll(() => { lib = openNapi() })
@@ -21,8 +27,7 @@ afterAll(()  => lib.close())
 
 describe('napi adapter loads bcrypt', () => {
   test('gen_salt_sync produces a salt string', () => {
-    const seed = new Uint8Array(16)
-    crypto.getRandomValues(seed)
+    const seed = randomSeed()
     const salt = lib.symbols.gen_salt_sync('b', 10, seed)
     expect(salt).toBeString()
     expect(salt.startsWith('$2b$')).toBe(true)
@@ -30,8 +35,7 @@ describe('napi adapter loads bcrypt', () => {
   })
 
   test('encrypt_sync produces a hash', () => {
-    const seed = new Uint8Array(16)
-    crypto.getRandomValues(seed)
+    const seed = randomSeed()
     const salt = lib.symbols.gen_salt_sync('b', 10, seed)
     const hash = lib.symbols.encrypt_sync('hunter2', salt)
     expect(hash).toBeString()
@@ -40,24 +44,21 @@ describe('napi adapter loads bcrypt', () => {
   })
 
   test('compare_sync matches correct password', () => {
-    const seed = new Uint8Array(16)
-    crypto.getRandomValues(seed)
+    const seed = randomSeed()
     const salt = lib.symbols.gen_salt_sync('b', 10, seed)
     const hash = lib.symbols.encrypt_sync('hunter2', salt)
     expect(lib.symbols.compare_sync('hunter2', hash)).toBe(true)
   })
 
   test('compare_sync rejects wrong password', () => {
-    const seed = new Uint8Array(16)
-    crypto.getRandomValues(seed)
+    const seed = randomSeed()
     const salt = lib.symbols.gen_salt_sync('b', 10, seed)
     const hash = lib.symbols.encrypt_sync('hunter2', salt)
     expect(lib.symbols.compare_sync('wrong', hash)).toBe(false)
   })
 
   test('get_rounds returns round count', () => {
-    const seed = new Uint8Array(16)
-    crypto.getRandomValues(seed)
+    const seed = randomSeed()
     const salt = lib.symbols.gen_salt_sync('b', 8, seed)
     const hash = lib.symbols.encrypt_sync('hunter2', salt)
     expect(lib.symbols.get_rounds(hash)).toBe(8)
