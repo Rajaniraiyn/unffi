@@ -13,6 +13,7 @@
     "src/generator/parser.ts",
     "src/generator/codegen.ts",
     "src/index.ts",
+    "src/unplugin.ts",
     "src/linux.ts",
     "src/macos.ts",
     "src/windows.ts"

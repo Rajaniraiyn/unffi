@@ -48,6 +48,10 @@
     "./windows": {
       "types": "./dist/windows.d.ts",
       "default": "./dist/windows.js"
+    },
+    "./unplugin": {
+      "types": "./dist/unplugin.d.ts",
+      "default": "./dist/unplugin.js"
     }
   },
   "files": [
@@ -106,5 +110,8 @@
   "homepage": "https://github.com/Rajaniraiyn/unffi#readme",
   "bugs": {
     "url": "https://github.com/Rajaniraiyn/unffi/issues"
+  },
+  "dependencies": {
+    "unplugin": "^3.0.0"
   }
 }
