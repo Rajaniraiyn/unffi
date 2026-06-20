@@ -57,6 +57,9 @@ jobs:
       - if: matrix.runtime == 'node'
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
 
+      - if: matrix.runtime == 'node'
+        run: node tests/koffi-bigint-built.mjs
+
       # Run a focused inline test using the compiled dist output (avoids bun:ffi / bun:test imports).
       - if: matrix.runtime == 'node'
         run: |
