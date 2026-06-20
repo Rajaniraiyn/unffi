@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const user32LibraryPaths = {
@@ -14,5 +14,5 @@ export const user32Schema = {
 } as const satisfies SymbolsSchema
 
 export async function openUser32(pathOverride?: string): Promise<InferLibrary<typeof user32Schema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[user32LibraryPaths.env] ?? user32LibraryPaths.candidates[0]!, { platform: 'win32' }), user32Schema)
+  return dlopen(resolveBindingLibraryPathSync(user32LibraryPaths, { platform: 'win32', pathOverride }), user32Schema)
 }

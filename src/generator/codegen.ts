@@ -13,11 +13,12 @@ export function generateLibraryModule(binding: LibraryBinding, options: CodegenO
   const openName = options.openName ?? `open${upperFirst(binding.name)}`
   const importPrefix = options.importPrefix ?? '.'
   const functions = binding.declarations.filter((item): item is FunctionBinding => item.kind === 'function')
+  const platformOption = formatPlatformOption(binding.platform)
 
   return [
     `import type { InferLibrary, SymbolsSchema } from '${importPrefix}/define.js'`,
     `import { dlopen } from '${importPrefix}/index.js'`,
-    `import { resolveLibraryPathSync } from '${importPrefix}/paths.js'`,
+    `import { resolveBindingLibraryPathSync } from '${importPrefix}/paths.js'`,
     `import { t } from '${importPrefix}/types.js'`,
     '',
     `export const ${pathsName} = {`,
@@ -30,11 +31,23 @@ export function generateLibraryModule(binding: LibraryBinding, options: CodegenO
     `} as const satisfies SymbolsSchema`,
     '',
     `export async function ${openName}(pathOverride?: string): Promise<InferLibrary<typeof ${schemaName}>> {`,
-    `  const path = pathOverride ?? resolveLibraryPathSync(${pathsName}.candidates[0]!)`,
+    `  const path = resolveBindingLibraryPathSync(${pathsName}, { ${platformOption}pathOverride })`,
     `  return dlopen(path, ${schemaName})`,
     `}`,
     '',
   ].join('\n')
+}
+
+function formatPlatformOption(platform: LibraryBinding['platform']): string {
+  const libraryPlatform = toLibraryPlatform(platform)
+  return libraryPlatform === undefined ? '' : `platform: ${JSON.stringify(libraryPlatform)}, `
+}
+
+function toLibraryPlatform(platform: LibraryBinding['platform']): 'linux' | 'darwin' | 'win32' | undefined {
+  if (platform === 'macos') return 'darwin'
+  if (platform === 'windows') return 'win32'
+  if (platform === 'linux') return 'linux'
+  return undefined
 }
 
 function formatStringArray(values: readonly string[]): string {

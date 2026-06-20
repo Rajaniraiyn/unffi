@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const securityLibraryPaths = {
@@ -13,13 +13,5 @@ export const securitySchema = {
 } as const satisfies SymbolsSchema
 
 export async function openSecurity(pathOverride?: string): Promise<InferLibrary<typeof securitySchema>> {
-  return dlopen(resolveMacOSLibraryPath(pathOverride ?? process.env[securityLibraryPaths.env] ?? securityLibraryPaths.candidates[0]!), securitySchema)
-}
-
-function resolveMacOSLibraryPath(input: string): string {
-  try {
-    return resolveLibraryPathSync(input, { platform: 'darwin' })
-  } catch {
-    return input
-  }
+  return dlopen(resolveBindingLibraryPathSync(securityLibraryPaths, { platform: 'darwin', pathOverride }), securitySchema)
 }

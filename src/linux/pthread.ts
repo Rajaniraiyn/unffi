@@ -1,11 +1,11 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const pthreadLibraryPaths = {
   env: 'UNFFI_PTHREAD_PATH',
-  candidates: ['libpthread.so.0', 'libc.so.6'],
+  candidates: ['libpthread.so.0'],
 } as const
 
 export const pthreadSchema = {
@@ -14,6 +14,5 @@ export const pthreadSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openPthread(pathOverride?: string): Promise<InferLibrary<typeof pthreadSchema>> {
-  const path = pathOverride ?? process.env[pthreadLibraryPaths.env] ?? pthreadLibraryPaths.candidates[0]!
-  return dlopen(resolveLibraryPathSync(path, { platform: 'linux' }), pthreadSchema)
+  return dlopen(resolveBindingLibraryPathSync(pthreadLibraryPaths, { platform: 'linux', pathOverride }), pthreadSchema)
 }

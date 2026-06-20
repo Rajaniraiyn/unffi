@@ -14,6 +14,18 @@ export interface LibraryPathOptions {
   readonly allowBare?: boolean
 }
 
+export interface BindingLibraryPaths {
+  readonly env?: string
+  readonly candidates: readonly string[]
+  readonly systemDirs?: readonly string[]
+}
+
+export interface BindingLibraryPathOptions {
+  readonly platform?: LibraryPlatform
+  readonly pathOverride?: string | undefined
+  readonly envReader?: (name: string) => string | undefined
+}
+
 const DYNAMIC_EXTENSIONS = ['.so', '.dylib', '.dll', '.node'] as const
 
 export function libraryExtensions(platform: LibraryPlatform = currentPlatform()): readonly string[] {
@@ -73,6 +85,35 @@ export async function resolveLibraryPath(input: string, options?: LibraryPathOpt
   return Promise.resolve(resolveLibraryPathSync(input, options))
 }
 
+export function resolveBindingLibraryPathSync(
+  paths: BindingLibraryPaths,
+  options: BindingLibraryPathOptions,
+): string {
+  const platform = options.platform ?? currentPlatform()
+  const readEnv = options.envReader ?? ((name: string) => process.env[name])
+  const inputs = options.pathOverride !== undefined
+    ? [options.pathOverride]
+    : [
+        ...(paths.env !== undefined ? splitEnvValue(readEnv(paths.env), platform) : []),
+        ...paths.candidates,
+      ]
+
+  let lastError: unknown
+  for (const input of inputs) {
+    try {
+      return resolveLibraryPathSync(input, {
+        platform,
+        ...(paths.systemDirs !== undefined && { systemDirs: paths.systemDirs }),
+      })
+    } catch (error) {
+      lastError = error
+    }
+  }
+
+  if (lastError instanceof Error) throw lastError
+  throw new Error('Could not resolve dynamic library path: no candidates provided')
+}
+
 function currentPlatform(): LibraryPlatform {
   if (process.platform === 'darwin') return 'darwin'
   if (process.platform === 'win32') return 'win32'
@@ -91,13 +132,16 @@ function dirVariants(dir: string, candidates: readonly string[], platform: Libra
 function envDirs(options: LibraryPathOptions, platform: LibraryPlatform): string[] {
   const names = options.env ?? []
   const readEnv = options.envReader ?? ((name: string) => process.env[name])
-  const separator = platform === 'win32' ? ';' : ':'
 
   return names.flatMap(name => {
-    const value = readEnv(name)
-    if (!value) return []
-    return value.split(separator).filter(Boolean)
+    return splitEnvValue(readEnv(name), platform)
   })
+}
+
+function splitEnvValue(value: string | undefined, platform: LibraryPlatform): string[] {
+  if (!value) return []
+  const separator = platform === 'win32' ? ';' : ':'
+  return value.split(separator).filter(Boolean)
 }
 
 function hasDynamicExtension(path: string): boolean {

@@ -55,6 +55,7 @@ export function generateBindingModule(entry: UnffiBindingEntry, options: Pick<Un
 
 export const unplugin = createUnplugin<UnffiPluginOptions>((options) => {
   const entries = new Map(options.entries.map(entry => [entry.name, entry]))
+  const generated = new Map<string, string>()
 
   return {
     name: 'unffi-bindings',
@@ -66,9 +67,13 @@ export const unplugin = createUnplugin<UnffiPluginOptions>((options) => {
       const name = id.slice(resolvedPrefix.length)
       const entry = entries.get(name)
       if (!entry) return null
+      const cached = generated.get(name)
+      if (cached !== undefined) return cached
 
       try {
-        return generateBindingModule(entry, options)
+        const code = generateBindingModule(entry, options)
+        generated.set(name, code)
+        return code
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
         if (options.diagnostics === 'silent') return 'export {}'

@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import {
   libraryCandidates,
   libraryExtensions,
+  resolveBindingLibraryPathSync,
   resolveLibraryPathSync,
 } from '../src/paths.js'
 
@@ -150,5 +151,41 @@ describe('resolveLibraryPathSync', () => {
       platform: 'linux',
       allowBare: false,
     })).toThrow('Could not resolve dynamic library path for "missing". Tried: missing.so')
+  })
+})
+
+describe('resolveBindingLibraryPathSync', () => {
+  test('uses explicit overrides before env and candidates', () => {
+    expect(resolveBindingLibraryPathSync({
+      env: 'UNFFI_LIB_PATH',
+      candidates: ['fallback.so'],
+    }, {
+      platform: 'linux',
+      pathOverride: 'override.so.1',
+      envReader: () => 'env.so.1',
+    })).toBe('override.so.1')
+  })
+
+  test('uses opt-in env values before candidates', () => {
+    expect(resolveBindingLibraryPathSync({
+      env: 'UNFFI_LIB_PATH',
+      candidates: ['fallback.so'],
+    }, {
+      platform: 'linux',
+      envReader: name => name === 'UNFFI_LIB_PATH' ? 'env.so.1' : undefined,
+    })).toBe('env.so.1')
+  })
+
+  test('walks candidates until a path candidate resolves', async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), 'unffi-binding-paths-'))
+    tempDirs.push(tempDir)
+    const existing = join(tempDir, 'libok.so')
+    await Bun.write(existing, '')
+
+    expect(resolveBindingLibraryPathSync({
+      candidates: ['./missing.so', existing],
+    }, {
+      platform: 'linux',
+    })).toBe(existing)
   })
 })

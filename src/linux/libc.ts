@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const libcLibraryPaths = {
@@ -16,5 +16,5 @@ export const libcSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openLibc(pathOverride?: string): Promise<InferLibrary<typeof libcSchema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[libcLibraryPaths.env] ?? libcLibraryPaths.candidates[0]!, { platform: 'linux' }), libcSchema)
+  return dlopen(resolveBindingLibraryPathSync(libcLibraryPaths, { platform: 'linux', pathOverride }), libcSchema)
 }

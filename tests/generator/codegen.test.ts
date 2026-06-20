@@ -36,6 +36,8 @@ describe('generator codegen', () => {
     expect(code).toContain('CFAbsoluteTimeGetCurrent: { args: [], returns: t.f64 }')
     expect(code).toContain('CFStringGetTypeID: { args: [], returns: t.u64 }')
     expect(code).toContain('export async function openCoreFoundation')
+    expect(code).toContain("import { resolveBindingLibraryPathSync } from '../../paths.js'")
+    expect(code).toContain("resolveBindingLibraryPathSync(coreFoundationLibraryPaths, { platform: \"darwin\", pathOverride })")
     expect(code).toContain('return dlopen(path, coreFoundationSchema)')
   })
 })

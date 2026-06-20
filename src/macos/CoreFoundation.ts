@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const coreFoundationLibraryPaths = {
@@ -15,13 +15,5 @@ export const coreFoundationSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openCoreFoundation(pathOverride?: string): Promise<InferLibrary<typeof coreFoundationSchema>> {
-  return dlopen(resolveMacOSLibraryPath(pathOverride ?? process.env[coreFoundationLibraryPaths.env] ?? coreFoundationLibraryPaths.candidates[0]!), coreFoundationSchema)
-}
-
-function resolveMacOSLibraryPath(input: string): string {
-  try {
-    return resolveLibraryPathSync(input, { platform: 'darwin' })
-  } catch {
-    return input
-  }
+  return dlopen(resolveBindingLibraryPathSync(coreFoundationLibraryPaths, { platform: 'darwin', pathOverride }), coreFoundationSchema)
 }

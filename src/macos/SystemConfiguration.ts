@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const systemConfigurationLibraryPaths = {
@@ -13,13 +13,5 @@ export const systemConfigurationSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openSystemConfiguration(pathOverride?: string): Promise<InferLibrary<typeof systemConfigurationSchema>> {
-  return dlopen(resolveMacOSLibraryPath(pathOverride ?? process.env[systemConfigurationLibraryPaths.env] ?? systemConfigurationLibraryPaths.candidates[0]!), systemConfigurationSchema)
-}
-
-function resolveMacOSLibraryPath(input: string): string {
-  try {
-    return resolveLibraryPathSync(input, { platform: 'darwin' })
-  } catch {
-    return input
-  }
+  return dlopen(resolveBindingLibraryPathSync(systemConfigurationLibraryPaths, { platform: 'darwin', pathOverride }), systemConfigurationSchema)
 }
