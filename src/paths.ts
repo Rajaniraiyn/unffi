@@ -54,6 +54,9 @@ export function resolveLibraryPathSync(input: string, options: LibraryPathOption
     if (isPathCandidate(candidate) && existsSync(pathForExistence(candidate, cwd))) {
       return candidate
     }
+    if (isMacOSSharedCacheCandidate(candidate, platform)) {
+      return candidate
+    }
   }
 
   if (isBareName(input)) {
@@ -114,6 +117,12 @@ function isPathCandidate(path: string): boolean {
     || path.startsWith('..\\')
     || path.includes('/')
     || path.includes('\\')
+}
+
+function isMacOSSharedCacheCandidate(path: string, platform: LibraryPlatform): boolean {
+  return platform === 'darwin'
+    && (path.startsWith('/usr/lib/') || path.startsWith('/System/Library/'))
+    && (!path.includes('.framework/') || !path.endsWith('.dylib'))
 }
 
 function isAbsoluteForAnyPlatform(path: string): boolean {
