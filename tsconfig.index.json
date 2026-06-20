@@ -25,7 +25,10 @@
     "src/macos/CoreFoundation.ts",
     "src/macos/Security.ts",
     "src/macos/SystemConfiguration.ts",
-    "src/windows.ts"
+    "src/windows.ts",
+    "src/windows/kernel32.ts",
+    "src/windows/advapi32.ts",
+    "src/windows/user32.ts"
   ],
   "references": [
     { "path": "./tsconfig.bun.json" },
