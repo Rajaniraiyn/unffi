@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
 import { dlopen, t } from '../src/adapters/bun.js'
+import type { CType } from '../src/types.js'
 
 const IS_BUN  = 'Bun'  in globalThis
 const IS_DENO = 'Deno' in globalThis
@@ -9,6 +10,10 @@ const ext = process.platform === 'darwin' ? 'dylib' : 'so'
 const LIB  = `/tmp/unffi_math.${ext}`
 
 let lib: ReturnType<typeof openLib>
+
+function runtimeCType(kind: string): CType<any> {
+  return { kind } as unknown as CType<any>
+}
 
 function openLib() {
   return dlopen(LIB, {
@@ -135,7 +140,7 @@ describe('callbacks — cstring through callback (normalised)', () => {
   test('with_message("hello") → callback receives "hello"', () => {
     let received: string | null = null
     lib.symbols.with_message((msg: string) => { received = msg }, 'hello')
-    expect(received).toBe('hello')
+    expect(received as unknown as string).toBe('hello')
   })
 })
 
@@ -175,13 +180,13 @@ describe('Disposable', () => {
 
 describe('wrong-platform type → helpful error', () => {
   test('deno:usize on non-Deno throws with Deno guidance', () => {
-    if (!IS_DENO) expect(() => dlopen(LIB, { fn: { args: [{ kind: 'deno:usize' as any }], returns: t.void } })).toThrow('Deno')
+    if (!IS_DENO) expect(() => dlopen(LIB, { fn: { args: [runtimeCType('deno:usize')], returns: t.void } })).toThrow('Deno')
   })
   test('koffi:str16 on non-Node throws with koffi guidance', () => {
-    if (!IS_NODE) expect(() => dlopen(LIB, { fn: { args: [{ kind: 'koffi:str16' as any }], returns: t.void } })).toThrow('koffi')
+    if (!IS_NODE) expect(() => dlopen(LIB, { fn: { args: [runtimeCType('koffi:str16')], returns: t.void } })).toThrow('koffi')
   })
   test('bun:i64_fast on non-Bun throws with Bun guidance', () => {
-    if (!IS_BUN) expect(() => dlopen(LIB, { fn: { args: [{ kind: 'bun:i64_fast' as any }], returns: t.void } })).toThrow('Bun')
+    if (!IS_BUN) expect(() => dlopen(LIB, { fn: { args: [runtimeCType('bun:i64_fast')], returns: t.void } })).toThrow('Bun')
   })
 })
 
@@ -244,7 +249,7 @@ if (IS_NODE) {
 
   describe('Node-specific: t.koffi.str16 (UTF-16, Windows WinAPI)', () => {
     test('t.koffi.str16 is a valid CType', () => {
-      expect(tKoffi.koffi.str16.kind).toBe('koffi:str16')
+      expect(String(tKoffi.koffi.str16.kind)).toBe('koffi:str16')
     })
   })
 

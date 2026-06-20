@@ -195,6 +195,18 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     const retType = getKoffiType(def.returns)
     const fn = lib.func(name, retType, argTypes)
 
+    if (callbackDefs.length === 0) {
+      symbols[name] = def.async
+        ? (...callArgs: unknown[]) =>
+            new Promise<unknown>((resolve, reject) =>
+              fn.async(...callArgs, (err: Error | null, result: unknown) =>
+                err ? reject(err) : resolve(result),
+              ),
+            )
+        : fn as (...callArgs: unknown[]) => unknown
+      continue
+    }
+
     symbols[name] = def.async
       ? (...callArgs: unknown[]) => {
           const wrapped = wrapCallbacks(callArgs, callbackDefs, cbPointerTypes, registered)

@@ -83,7 +83,7 @@ function getDenoResultType(type: CType<any>): Deno.NativeResultType {
   const kind = type.kind
   const mapped = allDenoTypes[kind]
   if (mapped !== undefined) return mapped
-  throw new Error(`[unffi/deno] Unsupported FFI result type "${kind}".`)
+  throw new Error(`[unffi/deno] Unsupported FFI result type "${kind}". ${runtimeHint(kind, 'deno')}`)
 }
 
 const denoExtensions: DenoT['deno'] = {
@@ -164,7 +164,7 @@ export async function dlopen<const S extends SymbolsSchema>(path: string, schema
   for (const [name, def] of Object.entries(schema)) {
     const rawFn = (lib.symbols as Record<string, (...a: unknown[]) => unknown>)[name]
 
-    if (!rawFn) continue
+    if (!rawFn) throw new Error(`[unffi/deno] Symbol "${name}" not found in ${path}`)
 
     const cstringInIdx = def.args
       .map((a, i) => (a.kind === 'cstring' ? i : -1))
