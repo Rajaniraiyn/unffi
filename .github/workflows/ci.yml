@@ -57,6 +57,9 @@ jobs:
       - if: matrix.runtime == 'node'
         run: cc -shared -fPIC -o /tmp/unffi_math.so tests/fixtures/math.c
 
+      - if: matrix.runtime == 'node'
+        run: node tests/koffi-bigint-built.mjs
+
       # Run a focused inline test using the compiled dist output (avoids bun:ffi / bun:test imports).
       - if: matrix.runtime == 'node'
         run: |
@@ -100,3 +103,40 @@ jobs:
           lib.close();
           console.log('OK');
           "
+
+  os-bindings:
+    name: os-bindings-${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: linux,   os: ubuntu-latest,  module: linux,   bun-test: tests/linux.test.ts }
+          - { name: macos,   os: macos-latest,   module: macos,   bun-test: tests/macos.test.ts }
+          - { name: windows, os: windows-latest, module: windows, bun-test: tests/windows.test.ts }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - run: bun install
+
+      - run: bun run build
+
+      - if: matrix.module == 'linux'
+        run: bun test tests/paths.test.ts
+
+      - run: bun test ${{ matrix.bun-test }}
+
+      - run: node tests/smoke/os-bindings.mjs ${{ matrix.module }}
+
+      - run: deno run --allow-ffi --allow-env --allow-read tests/smoke/os-bindings.mjs ${{ matrix.module }}

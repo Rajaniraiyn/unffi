@@ -1,5 +1,6 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
+import { libraryExtensions, resolveLibraryPath } from '../paths.js'
 import { t as coreT } from '../types.js'
 import { runtimeHint } from './hints.js'
 
@@ -125,9 +126,10 @@ function decodeCStringResult(ptr: Deno.PointerValue): string | null {
 }
 
 export async function dlopen<const S extends SymbolsSchema>(path: string, schema: S): Promise<InferLibrary<S>> {
-  if (path.endsWith('.node')) {
+  const resolvedPath = await resolveLibraryPath(path, { extensions: [...libraryExtensions(), '.node'] })
+  if (resolvedPath.endsWith('.node')) {
     const { dlopen: napiDlopen } = await import('./napi.js')
-    return napiDlopen(path, schema)
+    return napiDlopen(resolvedPath, schema)
   }
 
   const denoSymbols: Record<string, Deno.ForeignFunction> = {}
@@ -142,7 +144,7 @@ export async function dlopen<const S extends SymbolsSchema>(path: string, schema
 
   let lib: ReturnType<typeof Deno.dlopen>
   try {
-    lib = Deno.dlopen(path, denoSymbols)
+    lib = Deno.dlopen(resolvedPath, denoSymbols)
   } catch (e) {
     if (e instanceof Deno.errors.PermissionDenied) {
       throw new Error(
@@ -164,7 +166,7 @@ export async function dlopen<const S extends SymbolsSchema>(path: string, schema
   for (const [name, def] of Object.entries(schema)) {
     const rawFn = (lib.symbols as Record<string, (...a: unknown[]) => unknown>)[name]
 
-    if (!rawFn) throw new Error(`[unffi/deno] Symbol "${name}" not found in ${path}`)
+    if (!rawFn) throw new Error(`[unffi/deno] Symbol "${name}" not found in ${resolvedPath}`)
 
     const cstringInIdx = def.args
       .map((a, i) => (a.kind === 'cstring' ? i : -1))

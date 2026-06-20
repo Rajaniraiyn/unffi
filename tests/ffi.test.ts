@@ -6,8 +6,7 @@ const IS_BUN  = 'Bun'  in globalThis
 const IS_DENO = 'Deno' in globalThis
 const IS_NODE = !IS_BUN && !IS_DENO
 
-const ext = process.platform === 'darwin' ? 'dylib' : 'so'
-const LIB  = `/tmp/unffi_math.${ext}`
+const LIB = '/tmp/unffi_math'
 
 let lib: ReturnType<typeof openLib>
 

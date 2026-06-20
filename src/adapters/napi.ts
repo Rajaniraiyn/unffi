@@ -1,5 +1,6 @@
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CoreT } from '../types.js'
+import { resolveLibraryPathSync } from '../paths.js'
 import { t as coreT } from '../types.js'
 
 export type { InferLibrary }
@@ -19,28 +20,29 @@ function loadAddon(path: string): Record<string, unknown> {
 }
 
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
-  if (!path.endsWith('.node')) {
+  const resolvedPath = resolveLibraryPathSync(path, { extensions: ['.node'] })
+  if (!resolvedPath.endsWith('.node')) {
     throw new Error(
-      `[unffi/napi] NAPI adapter only supports .node files. Got: "${path}".\n` +
+      `[unffi/napi] NAPI adapter only supports .node files. Got: "${resolvedPath}".\n` +
       '  Use the node/deno adapter for .so / .dylib shared libraries.',
     )
   }
 
   let addon: Record<string, unknown>
   try {
-    addon = loadAddon(path)
+    addon = loadAddon(resolvedPath)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     if (IS_DENO) {
       throw new Error(
-        `[unffi/napi] Failed to load native addon "${path}".\n` +
+        `[unffi/napi] Failed to load native addon "${resolvedPath}".\n` +
         '  Deno requires --allow-ffi to load .node native addons.\n' +
         '  Run with: deno run --allow-ffi <script>\n' +
         `  ${msg}`,
       )
     }
     throw new Error(
-      `[unffi/napi] Failed to load native addon "${path}".\n  ${msg}`,
+      `[unffi/napi] Failed to load native addon "${resolvedPath}".\n  ${msg}`,
     )
   }
 
@@ -50,7 +52,7 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     const fn = addon[name]
     if (typeof fn !== 'function') {
       throw new Error(
-        `[unffi/napi] Symbol "${name}" not found or not a function in "${path}".\n` +
+        `[unffi/napi] Symbol "${name}" not found or not a function in "${resolvedPath}".\n` +
         `  Available exports: ${Object.keys(addon).join(', ') || '(none)'}`,
       )
     }

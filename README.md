@@ -62,6 +62,10 @@ Import from `unffi/types` to access types not in the universal core.
 - `t.deno.usize` / `t.deno.isize` — pointer-width integers on the current platform
 - `t.koffi.struct(layout)` — define a C struct layout for koffi on Node.js
 
+## System library helpers
+
+OS-specific helpers are available from `unffi/linux`, `unffi/macos`, and `unffi/windows`. Path resolution utilities are available from `unffi/paths`.
+
 Full API docs: [rajaniraiyn.github.io/unffi](https://rajaniraiyn.github.io/unffi)
 
 ## License
