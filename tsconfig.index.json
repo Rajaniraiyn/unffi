@@ -1,13 +1,15 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": [],
+    "types": ["node"],
     "tsBuildInfoFile": "node_modules/.cache/index.tsbuildinfo"
   },
   "files": [
     "src/types.ts",
     "src/define.ts",
-    "src/index.ts"
+    "src/paths.ts",
+    "src/index.ts",
+    "src/linux.ts"
   ],
   "references": [
     { "path": "./tsconfig.bun.json" },
