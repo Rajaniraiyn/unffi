@@ -45,6 +45,22 @@
       "types": "./dist/macos.d.ts",
       "default": "./dist/macos.js"
     },
+    "./macos/libSystem": {
+      "types": "./dist/macos/libSystem.d.ts",
+      "default": "./dist/macos/libSystem.js"
+    },
+    "./macos/CoreFoundation": {
+      "types": "./dist/macos/CoreFoundation.d.ts",
+      "default": "./dist/macos/CoreFoundation.js"
+    },
+    "./macos/Security": {
+      "types": "./dist/macos/Security.d.ts",
+      "default": "./dist/macos/Security.js"
+    },
+    "./macos/SystemConfiguration": {
+      "types": "./dist/macos/SystemConfiguration.d.ts",
+      "default": "./dist/macos/SystemConfiguration.js"
+    },
     "./windows": {
       "types": "./dist/windows.d.ts",
       "default": "./dist/windows.js"

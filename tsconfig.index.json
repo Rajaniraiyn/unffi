@@ -16,6 +16,10 @@
     "src/unplugin.ts",
     "src/linux.ts",
     "src/macos.ts",
+    "src/macos/libSystem.ts",
+    "src/macos/CoreFoundation.ts",
+    "src/macos/Security.ts",
+    "src/macos/SystemConfiguration.ts",
     "src/windows.ts"
   ],
   "references": [
