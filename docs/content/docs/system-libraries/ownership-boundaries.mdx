@@ -1,0 +1,27 @@
+---
+title: Ownership boundaries
+description: What shipped bindings can safely show today.
+---
+
+UnFFI makes native calls typed. It does not automatically model native ownership rules. The shipped bindings favour symbols that return scalars, mutate caller-owned buffers, or expose metadata.
+
+## Safe categories
+
+- Scalar returns such as `i32`, `u32`, `u64`, and `f64`.
+- `t.cstring` inputs that are encoded for the duration of one call.
+- Caller-owned `t.buffer` outputs such as `SecRandomCopyBytes` or `GetUserNameA`.
+
+## Metadata-only examples
+
+Some symbols are exported but not used in introductory examples:
+
+- `SCDynamicStoreCopyProxies` returns an owned CoreFoundation object pointer.
+- `dlerror` returns thread-local loader state that is only meaningful after a loader failure.
+
+These pages document the schema and path metadata without encouraging unsafe pointer work.
+
+## Wait for wrappers
+
+Avoid treating `t.pointer` returns as JavaScript objects. CoreFoundation Create/Copy APIs, COM objects, Objective-C messaging, structs by value, and callback-heavy APIs need higher-level wrappers that know when to retain, release, decode, or keep callbacks alive.
+
+`CoreFoundation` exports `CFRelease`, but only call it on pointers you obtained from documented Create/Copy APIs and fully understand.

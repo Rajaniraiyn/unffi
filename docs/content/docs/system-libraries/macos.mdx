@@ -1,0 +1,84 @@
+---
+title: macOS
+description: CoreFoundation, Security.framework, libSystem, and SystemConfiguration.
+---
+
+macOS modules use canonical system library and framework paths, including dyld shared-cache paths that may not exist as ordinary files.
+
+## CoreFoundation
+
+CoreFoundation exposes system time and runtime type identifiers without Objective-C or Swift.
+
+```ts
+import { openCoreFoundation } from 'unffi/macos/CoreFoundation'
+
+if (process.platform !== 'darwin') process.exit(0)
+
+await using cf = await openCoreFoundation()
+
+console.log({
+  absoluteTimeSecondsSince2001: cf.symbols.CFAbsoluteTimeGetCurrent(),
+  cfStringType: cf.symbols.CFStringGetTypeID(),
+})
+```
+
+## Security.framework random bytes
+
+`SecRandomCopyBytes` writes cryptographic bytes into a caller-owned `Uint8Array`.
+
+```ts
+import { openSecurity } from 'unffi/macos/Security'
+
+if (process.platform !== 'darwin') process.exit(0)
+
+await using security = await openSecurity()
+
+const bytes = new Uint8Array(32)
+const status = security.symbols.SecRandomCopyBytes(
+  null,
+  BigInt(bytes.byteLength),
+  bytes,
+)
+if (status !== 0) throw new Error(`SecRandomCopyBytes failed: ${status}`)
+```
+
+Use `crypto.getRandomValues` for portable app code. This example shows the native framework entry point and buffer pattern.
+
+## libSystem
+
+`libSystem` provides libc-style process and string helpers.
+
+```ts
+import { openLibSystem } from 'unffi/macos/libSystem'
+
+if (process.platform !== 'darwin') process.exit(0)
+
+await using libSystem = await openLibSystem()
+
+console.log({
+  pid: libSystem.symbols.getpid(),
+  nativeLength: libSystem.symbols.strlen('native-unffi'),
+  order: libSystem.symbols.strcmp('apple', 'banana'),
+  answer: libSystem.symbols.atoi('42'),
+})
+```
+
+## SystemConfiguration
+
+`SystemConfiguration` includes APIs for proxy and network configuration. The current exported symbol returns a CoreFoundation object pointer, so the safe example stops at metadata.
+
+```ts
+import {
+  systemConfigurationLibraryPaths,
+  systemConfigurationSchema,
+} from 'unffi/macos/SystemConfiguration'
+
+console.log({
+  library: systemConfigurationLibraryPaths.candidates[0],
+  returns: systemConfigurationSchema.SCDynamicStoreCopyProxies.returns.kind,
+})
+```
+
+<Callout type="warn">
+`SCDynamicStoreCopyProxies` returns an owned CoreFoundation object. Do not treat the pointer as a JS object until you have a wrapper that reads and releases it correctly.
+</Callout>

@@ -17,8 +17,9 @@ export default function HomePage() {
             {appName}
           </h1>
           <p className="text-fd-muted-foreground mt-4 max-w-lg text-lg leading-relaxed">
-            Call any native library from Bun, Deno, or Node with one schema.
-            Works with C, Rust, Go, Zig — anything that exports a C ABI.
+            Call any native library from Bun, Deno, or Node with one schema —
+            your own shared libraries or built-in OS bindings for libc, CoreFoundation,
+            kernel32, and more.
           </p>
           <div className="mt-8 flex items-center gap-3">
             <Link
@@ -53,7 +54,11 @@ export default function HomePage() {
             <Link href={`${docsRoute}/schema`} className="underline underline-offset-2">
               Schema &amp; types
             </Link>{' '}
-            for interactive type hovers.
+            for interactive type hovers, or{' '}
+            <Link href={`${docsRoute}/system-libraries`} className="underline underline-offset-2">
+              System libraries
+            </Link>{' '}
+            for shipped OS bindings.
           </p>
         </div>
       </section>

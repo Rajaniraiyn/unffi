@@ -1,0 +1,56 @@
+---
+title: Binding generation
+description: Generate typed modules from C and C++ headers.
+---
+
+UnFFI can generate binding modules from project-local `.h` and `.hpp` files. The same generator core backs shipped OS bindings and the `unffi/unplugin` integration.
+
+## Bundler plugin
+
+Use `unffi/unplugin` when a bundled app needs generated bindings as virtual modules.
+
+```ts title="vite.config.ts"
+import { vite as unffi } from 'unffi/unplugin'
+
+export default {
+  plugins: [
+    unffi({
+      entries: [{
+        name: 'math',
+        header: './native/math.h',
+        libraryNames: ['./native/libmath'],
+      }],
+    }),
+  ],
+}
+```
+
+```ts
+import { openMath } from 'virtual:unffi/bindings/math'
+
+await using math = await openMath()
+```
+
+The plugin exports adapters for Vite, Rollup, Webpack, Rspack, esbuild, and Bun.
+
+## Entry options
+
+| Option | Description |
+|---|---|
+| `name` | Virtual module name, used in `virtual:unffi/bindings/<name>`. |
+| `header` | Path to the `.h` or `.hpp` file. |
+| `libraryNames` | Library candidates passed to the generated `open*()` helper. |
+| `includeDirs` | Extra header include directories. |
+| `defines` | Preprocessor definitions. |
+| `platform` | Optional platform hint: `macos`, `linux`, `windows`, or `portable`. |
+| `env` | Optional `UNFFI_*_PATH` override name. |
+
+## Parser model
+
+The generator asks Clang for a JSON AST, maps supported C ABI types to `t.*` tokens, and emits normal TypeScript modules with schemas and `open*()` helpers.
+
+Unsupported shapes are skipped instead of guessed: C++ classes, templates, Objective-C messaging, COM vtables, variadic functions, bitfields, and ownership-heavy structs need explicit wrappers.
+
+<Callout type="warn">
+Generated bindings are only as safe as the native symbols you choose. Start with scalar, `cstring`, and caller-owned `buffer` APIs.
+</Callout>

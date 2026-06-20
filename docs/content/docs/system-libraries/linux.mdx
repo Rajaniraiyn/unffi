@@ -1,0 +1,92 @@
+---
+title: Linux
+description: libc, libm, pthread, unistd, and libdl.
+---
+
+Linux modules use versioned sonames such as `libc.so.6` and `libm.so.6`. Override paths with `UNFFI_*_PATH` when a distro stores libraries somewhere unusual.
+
+## libc
+
+```ts
+import { openLibc } from 'unffi/linux/libc'
+
+if (process.platform !== 'linux') process.exit(0)
+
+await using libc = await openLibc()
+
+console.log({
+  pid: libc.symbols.getpid(),
+  parentPid: libc.symbols.getppid(),
+  nativeLength: libc.symbols.strlen('native-unffi'),
+  compare: libc.symbols.strcmp('alpha', 'beta'),
+})
+```
+
+## libm
+
+`libm` is a separate native math library on many Linux systems.
+
+```ts
+import { openLibm } from 'unffi/linux/libm'
+
+if (process.platform !== 'linux') process.exit(0)
+
+await using libm = await openLibm()
+
+console.log({
+  cos: libm.symbols.cos(Math.PI / 3),
+  sin: libm.symbols.sin(Math.PI / 3),
+  sqrt: libm.symbols.sqrt(81),
+  fabs: libm.symbols.fabs(-123.456),
+})
+```
+
+## pthread
+
+JavaScript does not expose the native `pthread_t` for the current thread. Treat it as an opaque integer.
+
+```ts
+import { openPthread } from 'unffi/linux/pthread'
+
+if (process.platform !== 'linux') process.exit(0)
+
+await using pthread = await openPthread()
+
+const self = pthread.symbols.pthread_self()
+console.log({
+  pthread: self,
+  equalsSelf: pthread.symbols.pthread_equal(self, self) === 1,
+})
+```
+
+## unistd
+
+```ts
+import { openUnistd } from 'unffi/linux/unistd'
+
+if (process.platform !== 'linux') process.exit(0)
+
+await using unistd = await openUnistd()
+
+console.log({
+  uid: unistd.symbols.getuid(),
+  gid: unistd.symbols.getgid(),
+  parentPid: unistd.symbols.getppid(),
+  rootExists: unistd.symbols.access('/', 0) === 0,
+})
+```
+
+`access()` uses the process' real UID and GID. Containers and user namespaces can make these values look different from a normal shell.
+
+## libdl
+
+`dlerror()` is thread-local loader state. It is useful after a failing manual loader call, but the safe shipped example documents the binding metadata instead of forcing a failure.
+
+```ts
+import { libdlLibraryPaths, libdlSchema } from 'unffi/linux/libdl'
+
+console.log({
+  library: libdlLibraryPaths.candidates[0],
+  returns: libdlSchema.dlerror.returns.kind,
+})
+```

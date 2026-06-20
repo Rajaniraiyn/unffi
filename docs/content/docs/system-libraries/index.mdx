@@ -1,0 +1,55 @@
+---
+title: System libraries
+description: Focused, typed bindings for native OS libraries.
+---
+
+System library bindings are shipped as direct subpath imports. They use the same schema inference and lifecycle as `dlopen`, but the common library path, symbol schema, and `open*` helper are already defined.
+
+```ts
+import { openCoreFoundation } from 'unffi/macos/CoreFoundation'
+import { openLibc } from 'unffi/linux/libc'
+import { openKernel32 } from 'unffi/windows/kernel32'
+
+await using cf = await openCoreFoundation()
+const cfStringType = cf.symbols.CFStringGetTypeID()
+
+await using libc = await openLibc()
+const pid = libc.symbols.getpid()
+
+await using kernel32 = await openKernel32()
+const windowsPid = kernel32.symbols.GetCurrentProcessId()
+```
+
+## What you get
+
+- One import per native library, for example `unffi/macos/Security` or `unffi/windows/user32`.
+- Typed `open*()` helpers that return an `AsyncDisposable` library handle.
+- Exported `*Schema` and `*LibraryPaths` constants for inspection or manual composition.
+- `UNFFI_*_PATH` environment overrides and `open*(pathOverride)` for custom library locations.
+
+## Shipped modules
+
+| Platform | Import | Symbols | Env override |
+|---|---|---|---|
+| macOS | `unffi/macos/libSystem` | `getpid`, `strlen`, `strcmp`, `atoi` | `UNFFI_LIBSYSTEM_PATH` |
+| macOS | `unffi/macos/CoreFoundation` | `CFAbsoluteTimeGetCurrent`, `CFStringGetTypeID`, `CFRelease` | `UNFFI_COREFOUNDATION_PATH` |
+| macOS | `unffi/macos/Security` | `SecRandomCopyBytes` | `UNFFI_SECURITY_PATH` |
+| macOS | `unffi/macos/SystemConfiguration` | `SCDynamicStoreCopyProxies` | `UNFFI_SYSTEMCONFIGURATION_PATH` |
+| Linux | `unffi/linux/libc` | `getpid`, `getppid`, `strlen`, `strcmp` | `UNFFI_LIBC_PATH` |
+| Linux | `unffi/linux/libm` | `cos`, `sin`, `sqrt`, `fabs` | `UNFFI_LIBM_PATH` |
+| Linux | `unffi/linux/libdl` | `dlerror` | `UNFFI_LIBDL_PATH` |
+| Linux | `unffi/linux/pthread` | `pthread_self`, `pthread_equal` | `UNFFI_PTHREAD_PATH` |
+| Linux | `unffi/linux/unistd` | `getuid`, `getgid`, `getppid`, `access` | `UNFFI_UNISTD_PATH` |
+| Windows | `unffi/windows/kernel32` | `GetCurrentProcessId`, `GetCurrentThreadId`, `GetTickCount64`, `lstrlenA` | `UNFFI_KERNEL32_PATH` |
+| Windows | `unffi/windows/advapi32` | `GetUserNameA` | `UNFFI_ADVAPI32_PATH` |
+| Windows | `unffi/windows/user32` | `GetSystemMetrics`, `GetDoubleClickTime` | `UNFFI_USER32_PATH` |
+
+## Conservative by design
+
+The shipped surface is intentionally focused. APIs that need C++ classes, Objective-C messaging, COM vtables, variadic functions, bitfields, or ownership-heavy structs are skipped until UnFFI can model them safely.
+
+<Callout type="warn">
+The schema gives you a typed FFI boundary. It does not make arbitrary native pointers safe to own, inspect, or release.
+</Callout>
+
+Use the platform pages for runnable snippets, or see the repository `examples/` folder for scripts grouped by OS.

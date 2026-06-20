@@ -1,0 +1,38 @@
+---
+title: Path resolution
+description: How UnFFI finds dynamic libraries.
+---
+
+`dlopen` accepts exact paths, extensionless local paths, and bare library names. The path resolver expands extensions for the current platform and preserves explicit names such as `libc.so.6`, `CoreFoundation.framework/CoreFoundation`, and `kernel32.dll`.
+
+```ts
+import { resolveLibraryPathSync } from 'unffi/paths'
+
+resolveLibraryPathSync('./libmath')
+// ./libmath.dylib, ./libmath.so, or .\\libmath.dll depending on platform
+```
+
+## Binding path metadata
+
+Generated system modules use `resolveBindingLibraryPathSync` internally. It applies this order:
+
+1. `open*(pathOverride)`
+2. the module's `UNFFI_*_PATH` environment variable
+3. the module's built-in candidates
+
+```ts
+import { resolveBindingLibraryPathSync } from 'unffi/paths'
+import { libcLibraryPaths } from 'unffi/linux/libc'
+
+const path = resolveBindingLibraryPathSync(libcLibraryPaths, {
+  platform: 'linux',
+})
+```
+
+Environment variables are opt-in. UnFFI does not automatically emulate `LD_LIBRARY_PATH`, `DYLD_LIBRARY_PATH`, or `PATH`.
+
+## Platform notes
+
+- macOS framework paths may resolve through the dyld shared cache.
+- Linux modules prefer versioned sonames such as `libc.so.6`.
+- Windows modules use DLL names such as `kernel32.dll` and can be overridden when needed.

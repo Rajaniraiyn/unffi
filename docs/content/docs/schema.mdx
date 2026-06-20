@@ -121,6 +121,21 @@ const value = lib.symbols.fast(1, 2)
 
 `compress` is async (thread-pool call). `fast` is synchronous.
 
+## Generated schemas
+
+Shipped OS modules and generated bindings use the same `SymbolsSchema` shape. You can inspect the exported schema constants, pass them to manual `dlopen`, or rely on the `open*()` helpers.
+
+```ts
+import { coreFoundationSchema } from 'unffi/macos/CoreFoundation'
+import { libcSchema } from 'unffi/linux/libc'
+
+const cfReturn = coreFoundationSchema.CFStringGetTypeID.returns
+
+const libcArgs = libcSchema.strlen.args
+```
+
+See [System libraries](/docs/system-libraries) for shipped modules and [Binding generation](/docs/binding-generation) for project-local headers.
+
 ## Runtime-specific types
 
 <Tabs items={['Bun', 'Deno', 'Node (koffi)']}>

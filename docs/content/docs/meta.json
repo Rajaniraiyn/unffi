@@ -1,4 +1,4 @@
 {
   "title": "UnFFI",
-  "pages": ["getting-started", "schema", "runtimes", "guides", "tutorials"]
+  "pages": ["getting-started", "schema", "system-libraries", "binding-generation", "examples", "runtimes", "guides", "tutorials"]
 }
