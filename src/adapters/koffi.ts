@@ -106,6 +106,20 @@ function asPointer(ref: CType<unknown> | KoffiTypeSpec): IKoffiCType {
   return koffi.pointer(toSpec(ref))
 }
 
+function shouldNormalizeBigIntReturn(type: CType<unknown>): boolean {
+  const kind = type.kind as string
+  return kind === 'i64'
+    || kind === 'u64'
+    || kind === 'koffi:uintptr'
+    || kind === 'koffi:intptr'
+}
+
+function normalizeReturnValue(type: CType<unknown>, value: unknown): unknown {
+  return shouldNormalizeBigIntReturn(type) && typeof value === 'number'
+    ? BigInt(value)
+    : value
+}
+
 const koffiExtensions: KoffiT['koffi'] = {
   str16:   { kind: 'koffi:str16'   } as unknown as CType<string>,
   uintptr: { kind: 'koffi:uintptr' } as unknown as CType<bigint>,
@@ -196,16 +210,17 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
 
     const retType = getKoffiType(def.returns)
     const fn = lib.func(name, retType, argTypes)
+    const returns = def.returns as CType<unknown>
 
     if (callbackDefs.length === 0) {
       symbols[name] = def.async
         ? (...callArgs: unknown[]) =>
             new Promise<unknown>((resolve, reject) =>
               fn.async(...callArgs, (err: Error | null, result: unknown) =>
-                err ? reject(err) : resolve(result),
+                err ? reject(err) : resolve(normalizeReturnValue(returns, result)),
               ),
             )
-        : fn as (...callArgs: unknown[]) => unknown
+        : (...callArgs: unknown[]) => normalizeReturnValue(returns, fn(...callArgs))
       continue
     }
 
@@ -214,11 +229,14 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
           const wrapped = wrapCallbacks(callArgs, callbackDefs, cbPointerTypes, registered)
           return new Promise<unknown>((resolve, reject) =>
             fn.async(...wrapped, (err: Error | null, result: unknown) =>
-              err ? reject(err) : resolve(result),
+              err ? reject(err) : resolve(normalizeReturnValue(returns, result)),
             ),
           )
         }
-      : (...callArgs: unknown[]) => fn(...wrapCallbacks(callArgs, callbackDefs, cbPointerTypes, registered))
+      : (...callArgs: unknown[]) => normalizeReturnValue(
+          returns,
+          fn(...wrapCallbacks(callArgs, callbackDefs, cbPointerTypes, registered)),
+        )
   }
 
   // NO FinalizationRegistry on koffi callbacks. C owns the function

@@ -103,6 +103,7 @@ function envDirs(options: LibraryPathOptions, platform: LibraryPlatform): string
 function hasDynamicExtension(path: string): boolean {
   const lower = path.toLowerCase()
   return DYNAMIC_EXTENSIONS.some(extension => lower.endsWith(extension))
+    || /\.so(?:\.\d+)+$/.test(lower)
 }
 
 function isBareName(path: string): boolean {

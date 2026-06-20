@@ -50,6 +50,9 @@ describe('libraryCandidates', () => {
     expect(libraryCandidates('./libmath.so', { platform: 'linux' })).toEqual([
       './libmath.so',
     ])
+    expect(libraryCandidates('libc.so.6', { platform: 'linux' })).toEqual([
+      'libc.so.6',
+    ])
     expect(libraryCandidates('/tmp/libmath.dylib', { platform: 'darwin' })).toEqual([
       '/tmp/libmath.dylib',
     ])
@@ -127,6 +130,10 @@ describe('resolveLibraryPathSync', () => {
 
   test('returns the first bare fallback for a bare library name', () => {
     expect(resolveLibraryPathSync('libc', { platform: 'linux' })).toBe('libc.so')
+  })
+
+  test('returns versioned Linux sonames as explicit bare library names', () => {
+    expect(resolveLibraryPathSync('libc.so.6', { platform: 'linux' })).toBe('libc.so.6')
   })
 
   test('prefers extensionless macOS framework shared-cache paths over addon candidates', () => {
