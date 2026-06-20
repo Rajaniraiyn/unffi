@@ -129,6 +129,15 @@ describe('resolveLibraryPathSync', () => {
     expect(resolveLibraryPathSync('libc', { platform: 'linux' })).toBe('libc.so')
   })
 
+  test('prefers extensionless macOS framework shared-cache paths over addon candidates', () => {
+    const frameworkPath = '/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation'
+
+    expect(resolveLibraryPathSync(frameworkPath, {
+      platform: 'darwin',
+      extensions: ['.dylib', '.node'],
+    })).toBe(frameworkPath)
+  })
+
   test('throws with tried candidates when unresolved bare input is disallowed', () => {
     expect(() => resolveLibraryPathSync('missing', {
       platform: 'linux',

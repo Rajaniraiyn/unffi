@@ -9,7 +9,9 @@
     "src/define.ts",
     "src/paths.ts",
     "src/index.ts",
-    "src/linux.ts"
+    "src/linux.ts",
+    "src/macos.ts",
+    "src/windows.ts"
   ],
   "references": [
     { "path": "./tsconfig.bun.json" },

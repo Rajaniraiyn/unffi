@@ -32,6 +32,22 @@
       },
       "types": "./dist/adapters/napi.d.ts",
       "default": "./dist/adapters/napi.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "default": "./dist/paths.js"
+    },
+    "./linux": {
+      "types": "./dist/linux.d.ts",
+      "default": "./dist/linux.js"
+    },
+    "./macos": {
+      "types": "./dist/macos.d.ts",
+      "default": "./dist/macos.js"
+    },
+    "./windows": {
+      "types": "./dist/windows.d.ts",
+      "default": "./dist/windows.js"
     }
   },
   "files": [

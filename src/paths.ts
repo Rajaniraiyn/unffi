@@ -122,6 +122,7 @@ function isPathCandidate(path: string): boolean {
 function isMacOSSharedCacheCandidate(path: string, platform: LibraryPlatform): boolean {
   return platform === 'darwin'
     && (path.startsWith('/usr/lib/') || path.startsWith('/System/Library/'))
+    && !path.toLowerCase().endsWith('.node')
     && (!path.includes('.framework/') || !path.endsWith('.dylib'))
 }
 
