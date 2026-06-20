@@ -41,6 +41,26 @@
       "types": "./dist/linux.d.ts",
       "default": "./dist/linux.js"
     },
+    "./linux/libc": {
+      "types": "./dist/linux/libc.d.ts",
+      "default": "./dist/linux/libc.js"
+    },
+    "./linux/libm": {
+      "types": "./dist/linux/libm.d.ts",
+      "default": "./dist/linux/libm.js"
+    },
+    "./linux/libdl": {
+      "types": "./dist/linux/libdl.d.ts",
+      "default": "./dist/linux/libdl.js"
+    },
+    "./linux/pthread": {
+      "types": "./dist/linux/pthread.d.ts",
+      "default": "./dist/linux/pthread.js"
+    },
+    "./linux/unistd": {
+      "types": "./dist/linux/unistd.d.ts",
+      "default": "./dist/linux/unistd.js"
+    },
     "./macos": {
       "types": "./dist/macos.d.ts",
       "default": "./dist/macos.js"
