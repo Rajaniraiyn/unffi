@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const kernel32LibraryPaths = {
@@ -16,5 +16,5 @@ export const kernel32Schema = {
 } as const satisfies SymbolsSchema
 
 export async function openKernel32(pathOverride?: string): Promise<InferLibrary<typeof kernel32Schema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[kernel32LibraryPaths.env] ?? kernel32LibraryPaths.candidates[0]!, { platform: 'win32' }), kernel32Schema)
+  return dlopen(resolveBindingLibraryPathSync(kernel32LibraryPaths, { platform: 'win32', pathOverride }), kernel32Schema)
 }

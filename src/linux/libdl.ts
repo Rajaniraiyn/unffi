@@ -1,11 +1,11 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const libdlLibraryPaths = {
   env: 'UNFFI_LIBDL_PATH',
-  candidates: ['libdl.so.2', 'libc.so.6'],
+  candidates: ['libdl.so.2'],
 } as const
 
 export const libdlSchema = {
@@ -13,6 +13,5 @@ export const libdlSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openLibdl(pathOverride?: string): Promise<InferLibrary<typeof libdlSchema>> {
-  const path = pathOverride ?? process.env[libdlLibraryPaths.env] ?? libdlLibraryPaths.candidates[0]!
-  return dlopen(resolveLibraryPathSync(path, { platform: 'linux' }), libdlSchema)
+  return dlopen(resolveBindingLibraryPathSync(libdlLibraryPaths, { platform: 'linux', pathOverride }), libdlSchema)
 }

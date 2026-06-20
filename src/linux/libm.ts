@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const libmLibraryPaths = {
@@ -16,5 +16,5 @@ export const libmSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openLibm(pathOverride?: string): Promise<InferLibrary<typeof libmSchema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[libmLibraryPaths.env] ?? libmLibraryPaths.candidates[0]!, { platform: 'linux' }), libmSchema)
+  return dlopen(resolveBindingLibraryPathSync(libmLibraryPaths, { platform: 'linux', pathOverride }), libmSchema)
 }

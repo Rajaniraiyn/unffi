@@ -66,6 +66,52 @@ Import from `unffi/types` to access types not in the universal core.
 
 OS-specific helpers are available from `unffi/linux`, `unffi/macos`, and `unffi/windows`. Path resolution utilities are available from `unffi/paths`.
 
+Generated library subpaths expose focused, typed bindings for common system APIs:
+
+```ts
+import { openCoreFoundation } from 'unffi/macos/CoreFoundation'
+import { openLibc } from 'unffi/linux/libc'
+import { openKernel32 } from 'unffi/windows/kernel32'
+
+await using cf = await openCoreFoundation()
+console.log(cf.symbols.CFStringGetTypeID())
+
+await using libc = await openLibc()
+console.log(libc.symbols.getpid())
+
+await using kernel32 = await openKernel32()
+console.log(kernel32.symbols.GetCurrentProcessId())
+```
+
+The generated surface is intentionally conservative: unsupported ABI shapes such as C++ classes, Objective-C messaging, COM vtables, variadic functions, bitfields, and ownership-heavy structs are skipped until `unffi` can model them safely.
+
+## Header generation plugins
+
+`unffi/unplugin` can generate typed binding modules from project-local `.h` and `.hpp` files in Vite, Rollup, Webpack, Rspack, esbuild, and Bun builds:
+
+```ts
+// vite.config.ts
+import { vite as unffi } from 'unffi/unplugin'
+
+export default {
+  plugins: [
+    unffi({
+      entries: [{
+        name: 'math',
+        header: './native/math.h',
+        libraryNames: ['./native/libmath'],
+      }],
+    }),
+  ],
+}
+```
+
+```ts
+import { openMath } from 'virtual:unffi/bindings/math'
+
+await using math = await openMath()
+```
+
 Full API docs: [rajaniraiyn.github.io/unffi](https://rajaniraiyn.github.io/unffi)
 
 ## License

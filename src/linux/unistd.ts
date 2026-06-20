@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const unistdLibraryPaths = {
@@ -16,5 +16,5 @@ export const unistdSchema = {
 } as const satisfies SymbolsSchema
 
 export async function openUnistd(pathOverride?: string): Promise<InferLibrary<typeof unistdSchema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[unistdLibraryPaths.env] ?? unistdLibraryPaths.candidates[0]!, { platform: 'linux' }), unistdSchema)
+  return dlopen(resolveBindingLibraryPathSync(unistdLibraryPaths, { platform: 'linux', pathOverride }), unistdSchema)
 }

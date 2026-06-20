@@ -1,6 +1,6 @@
 import type { InferLibrary, SymbolsSchema } from '../define.js'
 import { dlopen } from '../index.js'
-import { resolveLibraryPathSync } from '../paths.js'
+import { resolveBindingLibraryPathSync } from '../paths.js'
 import { t } from '../types.js'
 
 export const advapi32LibraryPaths = {
@@ -13,5 +13,5 @@ export const advapi32Schema = {
 } as const satisfies SymbolsSchema
 
 export async function openAdvapi32(pathOverride?: string): Promise<InferLibrary<typeof advapi32Schema>> {
-  return dlopen(resolveLibraryPathSync(pathOverride ?? process.env[advapi32LibraryPaths.env] ?? advapi32LibraryPaths.candidates[0]!, { platform: 'win32' }), advapi32Schema)
+  return dlopen(resolveBindingLibraryPathSync(advapi32LibraryPaths, { platform: 'win32', pathOverride }), advapi32Schema)
 }
