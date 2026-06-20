@@ -1,6 +1,7 @@
 import { dlopen as bunDlopen, FFIType, JSCallback, CString, ptr as bunPtr } from 'bun:ffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
+import { resolveLibraryPathSync } from '../paths.js'
 import { t as coreT } from '../types.js'
 import { runtimeHint } from './hints.js'
 
@@ -69,6 +70,7 @@ const bunExtensions = {
 export const t: BunT = Object.assign({}, coreT, { bun: bunExtensions })
 
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
+  const resolvedPath = resolveLibraryPathSync(path)
   const bunSymbols: Record<string, { args: FFIType[]; returns: FFIType; nonblocking?: boolean }> = {}
 
   for (const [name, def] of Object.entries(schema)) {
@@ -79,7 +81,7 @@ export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): 
     }
   }
 
-  const lib = bunDlopen(path, bunSymbols)
+  const lib = bunDlopen(resolvedPath, bunSymbols)
   // NO FinalizationRegistry around JSCallbacks. C owns the function
   // pointer indefinitely — a library can stash a callback (logger, atexit,
   // signal handler) and invoke it long after the JS function is unreachable.

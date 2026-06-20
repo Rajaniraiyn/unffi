@@ -7,6 +7,7 @@
   "files": [
     "src/types.ts",
     "src/define.ts",
+    "src/paths.ts",
     "src/adapters/hints.ts",
     "src/adapters/koffi.ts",
     "src/adapters/node.ts",

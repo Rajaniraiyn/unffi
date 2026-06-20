@@ -1,6 +1,7 @@
 import koffi, { type IKoffiLib, type IKoffiCType } from 'koffi'
 import type { SymbolsSchema, InferLibrary } from '../define.js'
 import type { CCallback, CType, CTypeKind, CoreT } from '../types.js'
+import { resolveLibraryPathSync } from '../paths.js'
 import { t as coreT } from '../types.js'
 import { runtimeHint } from './hints.js'
 
@@ -167,7 +168,8 @@ type CallbackDef = { i: number; cb: CCallback<readonly CType<unknown>[], CType<u
 let cbCounter = 0
 
 export function dlopen<const S extends SymbolsSchema>(path: string, schema: S): InferLibrary<S> {
-  const lib = koffi.load(path)
+  const resolvedPath = resolveLibraryPathSync(path)
+  const lib = koffi.load(resolvedPath)
   const symbols: Record<string, (...args: unknown[]) => unknown> = {}
   const registered: IKoffiCType[] = []
 
